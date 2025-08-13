@@ -1,3 +1,5 @@
+#Client Setup for Spotify API Happens here
+
 import os
 import requests
 from dotenv import load_dotenv
