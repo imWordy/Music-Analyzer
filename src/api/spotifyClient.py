@@ -4,9 +4,12 @@ import os
 import requests
 from dotenv import load_dotenv
 
+projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+envPath = os.path.join(projectRoot, "config", ".env")
+
 class SpotifyClient:
     def __init__(self):
-        load_dotenv()
+        load_dotenv(dotenv_path=envPath)
         self.clientId = os.getenv("SPOTIFY_CLIENT_ID")
         self.clientSecret = os.getenv("SPOTIFY_CLIENT_SECRET")
         self.tokenUrl = "https://accounts.spotify.com/api/token"
@@ -18,7 +21,14 @@ class SpotifyClient:
         1. Sends clientId and clientSecret to Spotify
         2. Get the access token from Spotify and stores it
         """
-        pass
+        authResponse = requests.post(self.tokenUrl,
+                                     data={"grant_type": "client_credentials"},
+                                     auth = (self.clientId, self.clientSecret))
+        if authResponse.status_code != 200:
+            raise Exception(f"Failed to authenticate with Spotify: {authResponse.status_code}")
+        tokenData = authResponse.json()
+        self.accessToken = tokenData["access_token"]
+        return self.accessToken
 
     def searchTrack(self, query, limit=10):
         """

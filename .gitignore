@@ -2,3 +2,4 @@
 .env
 .idea
 src/api/__pycache__/
+data
