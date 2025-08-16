@@ -32,9 +32,31 @@ class SpotifyClient:
 
     def searchTrack(self, query, limit=10):
         """
-        Searches for a track given by user
+        Searches for a track given by user and should return a list of tracks with
+        their name, id and the artist.
         """
-        pass
+        if not self.accessToken:
+            self.authenticate()
+
+        headers = {"Authorization": f"Bearer {self.accessToken}"}
+        url = f"https://api.spotify.com/v1/search"
+        params = {"q": query, "type": "track", "limit": limit}
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            raise Exception(f"Searching has unfortunately failed: {response.status_code}")
+
+        results = response.json()
+        tracks = []
+
+        for i in results.get("tracks", {}).get("items", []):
+            trackInfo = {"ID": i["id"],
+                         "Name": i["name"],
+                         "Artist": i["artists"][0]["name"]}
+            tracks.append(trackInfo)
+
+            return tracks
 
     def getAudioFeatures(self, trackId):
         """
