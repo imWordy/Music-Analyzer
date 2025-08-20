@@ -2,7 +2,11 @@
 
 import os
 import requests
+import webbrowser
 from dotenv import load_dotenv
+from urllib.parse import urlencode, urlparse, parse_qs
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 envPath = os.path.join(projectRoot, "config", ".env")
@@ -13,13 +17,15 @@ class SpotifyClient:
         self.clientId = os.getenv("SPOTIFY_CLIENT_ID")
         self.clientSecret = os.getenv("SPOTIFY_CLIENT_SECRET")
         self.tokenUrl = "https://accounts.spotify.com/api/token"
+        self.redirectUri = os.getenv("SPOTIFY_REDIRECT_URI")
         self.accessToken = None
+        self.refreshToken = None
+
 
     def authenticate(self):
         """
         Handles Client Credentials Flow:
-        1. Sends clientId and clientSecret to Spotify
-        2. Get the access token from Spotify and stores it
+        Only useful for public data (tracks, albums, artists).
         """
         authResponse = requests.post(
             self.tokenUrl,
@@ -32,11 +38,94 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
+
+    def authenticateUser(self, scope = None):
+        """
+        Handles Authorization Code
+        Opens browser for user login and permission grant.
+        Required for personal/user-specific data and audio features.
+        """
+
+        if scope is None:
+            scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read")
+
+        authUrl = "https://accounts.spotify.com/authorize"
+        queryParams = urlencode({
+            "client_id": self.clientId,
+            "response_type": "code",
+            "redirect_uri": self.redirectUri,
+            "scope": scope
+        })
+        url = f"{authUrl}?{queryParams}"
+
+        # Container to capture code from redirect
+        codeContainer = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                query = parse_qs(urlparse(self.path).query)
+                if "code" in query:
+                    codeContainer["code"] = query["code"][0]
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"Authentication successful. You can close this window now.")
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+
+        # Start temporary server for callback
+        server = HTTPServer(("127.0.0.1", 8888), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+        # Open login page
+        webbrowser.open(url)
+
+        # Wait for redirect
+        while "code" not in codeContainer:
+            pass
+        server.shutdown()
+        code = codeContainer["code"]
+
+        # Exchange code for tokens
+        tokenResponse = requests.post(
+            self.tokenUrl,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self.redirectUri
+            },
+            auth=(self.clientId, self.clientSecret)
+        )
+        if tokenResponse.status_code != 200:
+            raise Exception(f"Failed user authentication: {tokenResponse.status_code}")
+
+        tokenData = tokenResponse.json()
+        self.accessToken = tokenData["access_token"]
+        self.refreshToken = tokenData.get("refresh_token")
+        return self.accessToken
+
+    def refreshAccessToken(self):
+        """
+        Refreshes the access token using refresh token.
+        Only needed for user login flow.
+        """
+        response = requests.post(
+            self.tokenUrl,
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": self.refreshToken
+            },
+            auth=(self.clientId, self.clientSecret)
+        )
+        if response.status_code != 200:
+            raise Exception(f"Failed to refresh token: {response.status_code}")
+
+        tokenData = response.json()
+        self.accessToken = tokenData["access_token"]
+        return self.accessToken
+
     def searchTrack(self, query, limit=10):
-        """
-        Searches for a track given by user and should return a list of tracks with
-        their name, id and the artist.
-        """
+        """Search for tracks by keyword."""
         if not self.accessToken:
             self.authenticate()
 
@@ -50,7 +139,6 @@ class SpotifyClient:
 
         results = response.json()
         tracks = []
-
         for i in results.get("tracks", {}).get("items", []):
             trackInfo = {
                 "trackID": i["id"],
@@ -61,13 +149,10 @@ class SpotifyClient:
                 "releaseDate": i["album"]["release_date"]
             }
             tracks.append(trackInfo)
-
         return tracks
 
     def getSongDetails(self, trackId):
-        """
-        Fetch detailed metadata for a specific track.
-        """
+        """Fetch detailed metadata for a specific track."""
         if not self.accessToken:
             self.authenticate()
 
@@ -95,9 +180,7 @@ class SpotifyClient:
         }
 
     def getArtistDetails(self, artistId):
-        """
-        Fetch metadata for an artist (name, genres, popularity, followers).
-        """
+        """Fetch metadata for an artist (name, genres, popularity, followers)."""
         if not self.accessToken:
             self.authenticate()
 
@@ -109,16 +192,51 @@ class SpotifyClient:
             raise Exception(f"Fetching artist details failed: {response.status_code}")
 
         artist = response.json()
-
-        genres = artist.get("genres", [])
-        if not genres:
-            genres = ["Unknown"]
+        genres = artist.get("genres", []) or ["Unknown"]
 
         return {
             "artistID": artist["id"],
             "artistName": artist["name"],
-            "genres": artist["genres"],
+            "genres": genres,
             "popularity": artist["popularity"],
             "followers": artist["followers"]["total"],
             "spotifyUrl": artist["external_urls"]["spotify"]
         }
+    def getRecentlyPlayed(self, limit=20):
+        """
+        Fetch user's recently played tracks (up to last 50).
+        Requires user login scope: user-read-recently-played
+        """
+        if not self.accessToken:
+            self.authenticateUser()
+
+        headers = {"Authorization": f"Bearer {self.accessToken}"}
+        url = "https://api.spotify.com/v1/me/player/recently-played"
+        params = {"limit": limit}
+
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            raise Exception(f"Fetching recently played failed: {response.status_code}")
+
+        return response.json().get("items", [])
+
+
+    def getTopItems(self, item_type="tracks", time_range="medium_term", limit=20):
+        """
+        Fetch user's top tracks or artists.
+        item_type = "tracks" or "artists"
+        time_range = "short_term" (4 weeks), "medium_term" (6 months), "long_term" (years)
+        Requires user login scope: user-top-read
+        """
+        if not self.accessToken:
+            self.authenticateUser()
+
+        headers = {"Authorization": f"Bearer {self.accessToken}"}
+        url = f"https://api.spotify.com/v1/me/top/{item_type}"
+        params = {"time_range": time_range, "limit": limit}
+
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            raise Exception(f"Fetching top {item_type} failed: {response.status_code}")
+
+        return response.json().get("items", [])
