@@ -3,5 +3,3 @@
 .idea
 src/api/__pycache__/
 data
-test.json
-trial.py
