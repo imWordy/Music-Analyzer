@@ -1,26 +1,59 @@
-## Testing the API to see if Spotify is replying to my request
-
 from api.spotifyClient import SpotifyClient
 
-if __name__ == '__main__':
-    client = SpotifyClient()
+client = SpotifyClient()
 
+# AUTH FUNCTIONS
+
+def authenticate_client():
+    token = client.authenticate()
+    return {"method": "client_credentials", "token": token}
+
+def authenticate_user():
+    token = client.authenticateUser()
+    return {"method": "user_login", "token": token}
+
+
+# DATA FETCHING FUNCTIONS
+
+def search_tracks(query="Blinding Lights", limit=3):
+    return client.searchTrack(query, limit)
+
+def get_track_details(track_id):
+    return client.getSongDetails(track_id)
+
+def get_artist_details(artist_id):
+    return client.getArtistDetails(artist_id)
+
+def get_recently_played(limit=5):
+    return client.getRecentlyPlayed(limit)
+
+def get_top_tracks(limit=5, time_range="medium_term"):
+    return client.getTopItems(item_type="tracks", time_range=time_range, limit=limit)
+
+def get_top_artists(limit=5, time_range="medium_term"):
+    return client.getTopItems(item_type="artists", time_range=time_range, limit=limit)
+
+
+
+## CLI For current testing phase
+
+if __name__ == '__main__':
     print("Choose your authentication method:")
     print("1. Client Credentials Flow")
     print("2. User Login")
     choice = input("Enter 1 or 2: ")
 
     if choice == "1":
-        token = client.authenticate()
+        auth = authenticate_client()
         print("Authenticated using Client Credentials Flow")
     elif choice == "2":
-        token = client.authenticateUser()
+        auth = authenticate_user()
         print("Authenticated using User Login Flow")
     else:
+        auth = authenticate_client()
         print("Invalid choice, defaulting to Client Credentials Flow")
-        token = client.authenticate()
 
-    tracks = client.searchTrack("Idol", limit=3)
+    tracks = search_tracks("Blinding Lights", limit=3)
     print("\nSearch results: ")
     for t in tracks:
         print(f"{t['trackName']} by {t['artistName']} "
@@ -28,29 +61,26 @@ if __name__ == '__main__':
 
     if tracks:
         trackID = tracks[0]['trackID']
-        print(f"\nFetching details for track: {tracks[0]['trackName']}")
-        songDetails = client.getSongDetails(trackID)
-        print("Song Details:", songDetails)
-
-        artistID = tracks[0]['artistID']
-        print(f"\nFetching details for artist: {tracks[0]['artistName']}")
-        artistDetails = client.getArtistDetails(artistID)
+        songDetails = get_track_details(trackID)
+        artistDetails = get_artist_details(tracks[0]['artistID'])
+        print("\nSong Details:", songDetails)
         print("Artist Details:", artistDetails)
 
-    if choice == "2":
-        print("\nFetching your recently played tracks...")
-        recent = client.getRecentlyPlayed(limit=5)
+    if auth["method"] == "user_login":
+        recent = get_recently_played(limit=5)
+        topTracks = get_top_tracks(limit=5)
+        topArtists = get_top_artists(limit=5)
+
+        print("\nRecently Played:")
         for item in recent:
             track = item["track"]
             print(f"- {track['name']} by {track['artists'][0]['name']} "
                   f"(Played at: {item['played_at']})")
 
-        print("\nFetching your top 5 tracks (last 6 months)...")
-        topTracks = client.getTopItems(item_type="tracks", time_range="medium_term", limit=5)
+        print("\nTop Tracks (last 6 months):")
         for t in topTracks:
             print(f"- {t['name']} by {t['artists'][0]['name']} (Popularity: {t['popularity']}/100)")
 
-        print("\nFetching your top 5 artists (last 6 months)...")
-        topArtists = client.getTopItems(item_type="artists", time_range="medium_term", limit=5)
+        print("\nTop Artists (last 6 months):")
         for a in topArtists:
             print(f"- {a['name']} (Genres: {', '.join(a['genres']) if a['genres'] else 'Unknown'})")
