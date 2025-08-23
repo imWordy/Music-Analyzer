@@ -15,8 +15,44 @@ def authenticate_user():
 
 # DATA FETCHING FUNCTIONS
 
-def search_tracks(query="Blinding Lights", limit=3):
-    return client.searchTrack(query, limit)
+def search_tracks():
+    print("\n--- Search Tracks ---")
+
+    # Optional filters first
+    track = input("Filter by track name (optional): ").strip() or None
+    artist = input("Filter by artist (optional): ").strip() or None
+    album = input("Filter by album (optional): ").strip() or None
+    genre = input("Filter by genre (optional): ").strip() or None
+    year = input("Filter by year (YYYY or YYYY-YYYY, optional): ").strip() or None
+
+    # If no filters, fallback to query
+    if not (track or artist or album or genre or year):
+        query = input("Enter a general search query: ").strip()
+    else:
+        query = None
+
+    # Perform search
+    results = client.searchTrack(
+        track=track,
+        artist=artist,
+        album=album,
+        genre=genre,
+        year=year,
+        query=query,
+        limit=5
+    )
+
+    if not results:
+        print("No results found.")
+        return None
+
+    print("\nSearch results:")
+    for i, t in enumerate(results, start=1):
+        print(f"{i}. {t['trackName']} by {t['artistName']} "
+              f"(Album: {t['albumName']}, Released: {t['releaseDate']})")
+
+    return results
+
 
 def get_track_details(track_id):
     return client.getSongDetails(track_id)
@@ -53,12 +89,9 @@ if __name__ == '__main__':
         auth = authenticate_client()
         print("Invalid choice, defaulting to Client Credentials Flow")
 
-    tracks = search_tracks("Blinding Lights", limit=3)
-    print("\nSearch results: ")
-    for t in tracks:
-        print(f"{t['trackName']} by {t['artistName']} "
-              f"(Album: {t['albumName']}, Released: {t['releaseDate']})")
+    # Always allow search
 
+    tracks = search_tracks()
     if tracks:
         trackID = tracks[0]['trackID']
         songDetails = get_track_details(trackID)
