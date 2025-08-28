@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-envPath = os.path.join(projectRoot, "config", ".env")
+envPath = os.path.join(projectRoot, "config", ".env.example")
 
 class SpotifyClient:
     def __init__(self):
