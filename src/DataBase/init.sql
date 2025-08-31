@@ -57,33 +57,6 @@ create table artistDetails(
             on delete cascade
 );
 
-CREATE TABLE Playlists (
-    playlistID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    userID UUID NOT NULL,
-    playlistName VARCHAR(200) NOT NULL,
-    description TEXT,
-    creationDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_user
-        FOREIGN KEY (userID)
-        REFERENCES user_info(id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE Playlist_Tracks (
-    playlistID UUID NOT NULL,
-    trackID VARCHAR(200) NOT NULL,
-    orderInPlaylist INT,
-    PRIMARY KEY (playlistID, trackID),
-    CONSTRAINT fk_playlist
-        FOREIGN KEY (playlistID)
-        REFERENCES Playlists(playlistID)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_track
-        FOREIGN KEY (trackID)
-        REFERENCES trackinfo(trackID)
-        ON DELETE CASCADE
-);
-
 CREATE TABLE Albums (
     albumID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     albumName VARCHAR(200) NOT NULL,
@@ -94,26 +67,17 @@ CREATE TABLE Albums (
     CONSTRAINT fk_artist_album
         FOREIGN KEY (artistID)
         REFERENCES artistDetails(artistID)
-        ON DELETE SET NULL
-);
-
-CREATE TABLE Genres (
-    genreID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    genreName VARCHAR(100) NOT NULL UNIQUE
+        ON DELETE CASCADE
 );
 
 CREATE TABLE Artist_Genres (
     artistID VARCHAR(100) NOT NULL,
-    genreID UUID NOT NULL,
-    PRIMARY KEY (artistID, genreID),
+    genre VARCHAR(100) NOT NULL,
+    PRIMARY KEY (artistID, genre),
     CONSTRAINT fk_artist_genre_link
         FOREIGN KEY (artistID)
         REFERENCES artistDetails(artistID)
         ON DELETE CASCADE,
-    CONSTRAINT fk_genre_artist_link
-        FOREIGN KEY (genreID)
-        REFERENCES Genres(genreID)
-        ON DELETE CASCADE
 );
 
 CREATE TABLE User_Listening_History (
@@ -146,4 +110,4 @@ create table artist_popularity(
     CONSTRAINT artist_popularity_artistID_fkey
         foreign key (artistID)
             references trackinfo(artistID)
-)
+);
