@@ -124,43 +124,22 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
-    def searchTrack(self, track=None, artist=None, album=None, genre=None, year=None, query=None, limit=10):
+    def searchTrack(self, query, limit=10):
+        """Search for tracks by keyword."""
         if not self.accessToken:
             self.authenticate()
 
-        if not (track or artist or album or genre or year or query):
-            raise ValueError("You must provide at least a query or one filter (track, artist, album, genre, year).")
-
-        # Always quote values so case/spacing issues don’t break queries
-        def quote(val):
-            return f'"{val}"' if val else None
-
-        queryParts = []
-        if track: queryParts.append(f"track:{quote(track)}")
-        if artist: queryParts.append(f"artist:{quote(artist)}")
-        if album: queryParts.append(f"album:{quote(album)}")
-        if genre: queryParts.append(f"genre:{quote(genre)}")
-        if year: queryParts.append(f"year:{quote(year)}")
-
-        finalQuery = " ".join(queryParts) if queryParts else query
-        finalQuery = finalQuery.strip()
-        print(f"[DEBUG] Final query sent to Spotify: {finalQuery}")
-
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = "https://api.spotify.com/v1/search"
-        params = {"q": finalQuery, "type": "track", "limit": limit}
+        params = {"q": query, "type": "track", "limit": limit}
 
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
-            raise Exception(f"Searching failed: {response.status_code} | {response.text}")
+            raise Exception(f"Searching failed: {response.status_code}")
 
         results = response.json()
         tracks = []
-        items = results.get("tracks", {}).get("items", [])
-        if not items:
-            return []
-
-        for i in items:
+        for i in results.get("tracks", {}).get("items", []):
             trackInfo = {
                 "trackID": i["id"],
                 "trackName": i["name"],
