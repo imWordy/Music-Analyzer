@@ -107,7 +107,7 @@ class SpotifyClient:
     def refreshAccessToken(self):
         """
         Refreshes the access token using refresh token.
-        Only needed for user login flow.
+        Only needed for user login flow. Not Client Credentials Flow
         """
         response = requests.post(
             self.tokenUrl,
