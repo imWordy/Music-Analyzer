@@ -64,10 +64,13 @@ def get_top_100_playlist():
     playlist_id = "5ABHKGoOzxkaa28ttQV9sE"
     print("\nFetching Top 100 Spotify Songs (Aug 8, 2025)...")
     songs = client.getPlaylistTracks(playlist_id)
+
     for i, song in enumerate(songs, start=1):
         print(f"{i}. {song['trackName']} by {song['artistName']} "
-              f"(Album: {song['albumName']}, Released: {song['releaseDate']})")
-    return songs
+              f"(Album: {song['albumName']}, Released: {song['releaseDate']}, ID: {song['trackID']})")
+
+    return [song["trackID"] for song in songs]
+
 
 # CLI For current testing phase
 if __name__ == '__main__':
