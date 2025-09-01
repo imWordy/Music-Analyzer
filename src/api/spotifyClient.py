@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-envPath = os.path.join(projectRoot, "config", ".env.example")
+envPath = os.path.join(projectRoot, "config", ".env")
 
 class SpotifyClient:
     def __init__(self):
@@ -20,7 +20,6 @@ class SpotifyClient:
         self.redirectUri = os.getenv("SPOTIFY_REDIRECT_URI")
         self.accessToken = None
         self.refreshToken = None
-
 
     def authenticate(self):
         """
@@ -38,14 +37,12 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
-
-    def authenticateUser(self, scope = None):
+    def authenticateUser(self, scope=None):
         """
         Handles Authorization Code
         Opens browser for user login and permission grant.
         Required for personal/user-specific data and audio features.
         """
-
         if scope is None:
             scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read")
 
@@ -107,7 +104,7 @@ class SpotifyClient:
     def refreshAccessToken(self):
         """
         Refreshes the access token using refresh token.
-        Only needed for user login flow. Not Client Credentials Flow
+        Only needed for user login flow.
         """
         response = requests.post(
             self.tokenUrl,
@@ -131,16 +128,12 @@ class SpotifyClient:
         if not (track or artist or album or genre or year or query):
             raise ValueError("You must provide at least a query or one filter (track, artist, album, genre, year).")
 
-        # Always quote values so case/spacing issues don’t break queries
-        def quote(val):
-            return f'"{val}"' if val else None
-
         queryParts = []
-        if track: queryParts.append(f"track:{quote(track)}")
-        if artist: queryParts.append(f"artist:{quote(artist)}")
-        if album: queryParts.append(f"album:{quote(album)}")
-        if genre: queryParts.append(f"genre:{quote(genre)}")
-        if year: queryParts.append(f"year:{quote(year)}")
+        if track: queryParts.append(f"track:{track}")
+        if artist: queryParts.append(f"artist:{artist}")
+        if album: queryParts.append(f"album:{album}")
+        if genre: queryParts.append(f"genre:{genre}")
+        if year: queryParts.append(f"year:{year}")
 
         finalQuery = " ".join(queryParts) if queryParts else query
         finalQuery = finalQuery.strip()
@@ -223,6 +216,7 @@ class SpotifyClient:
             "followers": artist["followers"]["total"],
             "spotifyUrl": artist["external_urls"]["spotify"]
         }
+
     def getRecentlyPlayed(self, limit=20):
         """
         Fetch user's recently played tracks (up to last 50).
@@ -241,10 +235,9 @@ class SpotifyClient:
 
         return response.json().get("items", [])
 
-
-    def getTopItems(self, item_type="tracks", time_range="medium_term", limit=20, offset=0): # Added offset parameter
+    def getTopItems(self, item_type="tracks", time_range="medium_term", limit=20):
         """
-        Fetch user's top tracks or artists with pagination support.
+        Fetch user's top tracks or artists.
         item_type = "tracks" or "artists"
         time_range = "short_term" (4 weeks), "medium_term" (6 months), "long_term" (years)
         Requires user login scope: user-top-read
@@ -254,10 +247,63 @@ class SpotifyClient:
 
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = f"https://api.spotify.com/v1/me/top/{item_type}"
-        params = {"time_range": time_range, "limit": limit, "offset": offset} # Pass offset to params
+        params = {"time_range": time_range, "limit": limit}
 
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
-            raise Exception(f"Fetching top {item_type} failed: {response.status_code}. Response: {response.text}")
+            raise Exception(f"Fetching top {item_type} failed: {response.status_code}")
 
         return response.json().get("items", [])
+
+    def getPlaylistTracks(self, playlistUrlOrId, limit=100):
+        """
+        Fetch all tracks and metadata from a given public playlist.
+        Uses Client Credentials Flow (no user login required).
+        """
+        if not self.accessToken:
+            self.authenticate()
+
+        # Extract playlist ID from full URL if needed
+        if "spotify.com" in playlistUrlOrId:
+            playlistId = playlistUrlOrId.split("/")[-1].split("?")[0]
+        else:
+            playlistId = playlistUrlOrId
+
+        headers = {"Authorization": f"Bearer {self.accessToken}"}
+        url = f"https://api.spotify.com/v1/playlists/{playlistId}/tracks"
+
+        tracks = []
+        params = {"limit": 100, "offset": 0}
+
+        while True:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code != 200:
+                raise Exception(f"Fetching playlist failed: {response.status_code} | {response.text}")
+
+            data = response.json()
+            items = data.get("items", [])
+            if not items:
+                break
+
+            for i in items:
+                track = i.get("track")
+                if track:
+                    trackInfo = {
+                        "trackID": track["id"],
+                        "trackName": track["name"],
+                        "artistName": track["artists"][0]["name"],
+                        "artistID": track["artists"][0]["id"],
+                        "albumName": track["album"]["name"],
+                        "releaseDate": track["album"]["release_date"],
+                        "popularity": track.get("popularity"),
+                        "spotifyUrl": track["external_urls"]["spotify"]
+                    }
+                    tracks.append(trackInfo)
+
+            # Pagination check
+            if data.get("next"):
+                params["offset"] += params["limit"]
+            else:
+                break
+
+        return tracks
