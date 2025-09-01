@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from urllib.parse import urlencode, urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+from typing import Tuple, List, Dict
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 envPath = os.path.join(projectRoot, "config", ".env")
@@ -21,10 +22,12 @@ class SpotifyClient:
         self.accessToken = None
         self.refreshToken = None
 
-    def authenticate(self):
+    def authenticate(self) -> str:
         """
         Handles Client Credentials Flow:
         Only useful for public data (tracks, albums, artists).
+        :param:
+        :return: access token
         """
         authResponse = requests.post(
             self.tokenUrl,
@@ -37,11 +40,13 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
-    def authenticateUser(self, scope=None):
+    def authenticateUser(self, scope: str = None) -> str:
         """
         Handles Authorization Code
         Opens browser for user login and permission grant.
         Required for personal/user-specific data and audio features.
+        :param: scope: str -> optional, defaults to "user-read-recently-played user-top-read"
+        :return: access token
         """
         if scope is None:
             scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read")
