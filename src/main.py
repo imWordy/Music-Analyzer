@@ -11,6 +11,7 @@ def authenticate_user():
     token = client.authenticateUser()
     return {"method": "user_login", "token": token}
 
+
 # DATA FETCHING FUNCTIONS
 def search_tracks():
     print("\n--- Search Tracks ---")
@@ -44,6 +45,7 @@ def search_tracks():
               f"(Album: {t['albumName']}, Released: {t['releaseDate']})")
     return results
 
+
 def get_track_details(track_id):
     return client.getSongDetails(track_id)
 
@@ -60,16 +62,40 @@ def get_top_artists(limit=5, time_range="medium_term"):
     return client.getTopItems(item_type="artists", time_range=time_range, limit=limit)
 
 def get_top_100_playlist():
-    """Fetch Top 100 Spotify songs (as of Aug 8, 2025) from fixed playlist"""
-    playlist_id = "5ABHKGoOzxkaa28ttQV9sE"
-    print("\nFetching Top 100 Spotify Songs (Aug 8, 2025)...")
-    songs = client.getPlaylistTracks(playlist_id)
+    print("\n--- Spotify Global Top 100 Playlist ---")
+    playlist_id = "5ABHKGoOzxkaa28ttQV9sE"  # fixed playlist
+    tracks = client.getPlaylistTracks(playlist_id)
 
-    for i, song in enumerate(songs, start=1):
-        print(f"{i}. {song['trackName']} by {song['artistName']} "
-              f"(Album: {song['albumName']}, Released: {song['releaseDate']}, ID: {song['trackID']})")
+    if not tracks:
+        print("No tracks found in playlist.")
+        return None
 
-    return [song["trackID"] for song in songs]
+    for i, t in enumerate(tracks, start=1):
+        print(f"{i}. {t['trackName']} by {t['artistName']} "
+              f"(Album: {t['albumName']}, Released: {t['releaseDate']})")
+
+    # Interactive menu
+    while True:
+        choice = input("\nEnter track number to see details (or 'q' to quit): ").strip()
+        if choice.lower() == "q":
+            break
+        if not choice.isdigit() or not (1 <= int(choice) <= len(tracks)):
+            print("Invalid choice. Try again.")
+            continue
+
+        selected = tracks[int(choice) - 1]
+        print(f"\nSelected: {selected['trackName']} by {selected['artistName']}")
+
+        detail_choice = input("See (1) Song Details or (2) Artist Details? ").strip()
+        if detail_choice == "1":
+            details = get_track_details(selected["trackID"])
+            print("\nSong Details:", details)
+        elif detail_choice == "2":
+            details = get_artist_details(selected["artistID"])
+            print("\nArtist Details:", details)
+        else:
+            print("Invalid choice.")
+    return tracks
 
 
 # CLI For current testing phase
@@ -89,16 +115,15 @@ if __name__ == '__main__':
         auth = authenticate_client()
         print("Invalid choice, defaulting to Client Credentials Flow")
 
-    # Menu
-    print("\nChoose an option:")
+    # Menu for actions
+    print("\n--- Main Menu ---")
     print("1. Search Tracks")
-    print("2. Get Top 100 Spotify Songs (Aug 8, 2025)")
+    print("2. Fetch Top 100 Global Playlist")
     if auth["method"] == "user_login":
-        print("3. View Recently Played + Top Tracks/Artists")
+        print("3. See Recently Played + Top Tracks/Artists")
+    action = input("Enter your choice: ")
 
-    option = input("Enter your choice: ")
-
-    if option == "1":
+    if action == "1":
         tracks = search_tracks()
         if tracks:
             trackID = tracks[0]['trackID']
@@ -107,10 +132,10 @@ if __name__ == '__main__':
             print("\nSong Details:", songDetails)
             print("Artist Details:", artistDetails)
 
-    elif option == "2":
+    elif action == "2":
         get_top_100_playlist()
 
-    elif option == "3" and auth["method"] == "user_login":
+    elif action == "3" and auth["method"] == "user_login":
         recent = get_recently_played(limit=5)
         topTracks = get_top_tracks(limit=5)
         topArtists = get_top_artists(limit=5)
