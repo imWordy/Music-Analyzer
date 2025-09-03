@@ -12,7 +12,7 @@ create table trackinfo(
 );
 
 create table songDetails(
-    trackID varchar(200),
+    trackID varchar(200) primary key,
     trackName varchar(200),
     artistName varchar(100),
     albumName varchar(100),
@@ -28,37 +28,20 @@ create table songDetails(
     constraint songDetails_trackID_fkey
         foreign key (trackID)
             references trackinfo(trackID)
-            on delete cascade,
-    constraint songDetails_trackName_fkey
-        foreign key (trackName)
-            references trackinfo(trackName)
-            on delete cascade,
-    constraint songDetails_artistName_fkey
-        foreign key (artistName)
-            references trackinfo(artistName)
             on delete cascade
 );
 
 create table artistDetails(
-    artistID varchar(200),
+    artistID varchar(200) primary key,
     artistName varchar(100),
     genres varchar(200),
     popularity int,
     followers int,
-    spotifyUrl varchar(200),
-
-    constraint artistDetails_artistID_fkey
-        foreign key (artistID)
-            references trackinfo(artistID)
-            on delete cascade,
-    constraint artistDetails_artistName_fkey
-        foreign key (artistName)
-            references trackinfo(artistName)
-            on delete cascade
+    spotifyUrl varchar(200)
 );
 
 CREATE TABLE Albums (
-    albumID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    albumID VARCHAR(200) PRIMARY KEY, -- Changed to VARCHAR to store Spotify ID
     albumName VARCHAR(200) NOT NULL,
     releaseDate VARCHAR(100),
     artistID VARCHAR(100),
@@ -77,7 +60,7 @@ CREATE TABLE Artist_Genres (
     CONSTRAINT fk_artist_genre_link
         FOREIGN KEY (artistID)
         REFERENCES artistDetails(artistID)
-        ON DELETE CASCADE,
+        ON DELETE CASCADE
 );
 
 CREATE TABLE User_Listening_History (
@@ -96,18 +79,26 @@ CREATE TABLE User_Listening_History (
 );
 
 create table song_Popularity(
-    trackID varchar(200),
+    trackID varchar(200) primary key, -- Added primary key
     popularity int,
     CONSTRAINT song_Popularity_trackID_fkey
         foreign key (trackID)
             references trackinfo(trackID)
-            on delete cascade
 );
 
 create table artist_popularity(
-    artistID varchar(200),
+    artistID varchar(200) primary key, -- Added primary key
     popularity int,
     CONSTRAINT artist_popularity_artistID_fkey
         foreign key (artistID)
-            references trackinfo(artistID)
+            references artistDetails(artistID) 
+);
+
+create table top_hundered_tracks(
+    trackID varchar(200) primary key, 
+    albumName varchar(200),
+    releaseDate varchar(100),
+    CONSTRAINT top_hundred_tracks_trackID_fkey
+        foreign key (trackID)
+            references trackinfo(trackID)
 );

@@ -10,7 +10,7 @@ import threading
 from typing import Tuple, List, Dict
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-envPath = os.path.join(projectRoot, "config", ".env")
+envPath = os.path.join(projectRoot, "config", ".env.example")
 
 class SpotifyClient:
     def __init__(self):
@@ -110,6 +110,8 @@ class SpotifyClient:
         """
         Refreshes the access token using refresh token.
         Only needed for user login flow.
+        :param:
+        :return: access token
         """
         response = requests.post(
             self.tokenUrl,
@@ -126,7 +128,24 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
-    def searchTrack(self, track=None, artist=None, album=None, genre=None, year=None, query=None, limit=10):
+    def searchTrack(self, track: str = None,
+                    artist: str = None,
+                    album: str = None,
+                    genre: str = None,
+                    year: str = None,
+                    query: str = None,
+                    limit: int = 10) -> List[Dict]:
+        """
+        this function searches the track in the spotify database using any of the given data points
+        :param track:
+        :param artist:
+        :param album:
+        :param genre:
+        :param year:
+        :param query:
+        :param limit:
+        :return: tracks -> list of dictionaries
+        """
         if not self.accessToken:
             self.authenticate()
 

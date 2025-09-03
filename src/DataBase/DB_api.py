@@ -1,86 +1,136 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import psycopg2
-from DB_connect import DB_connect
+from . import DB_connect
 
 class DB_api:
     """
     Class to interact with the database.
     """
     def __init__(self):
-        self.db_instance = DB_connect()
+        self.db_instance = DB_connect.DB_connect()
+
+    def _execute_query(self, query: str, data: Tuple = None, commit: bool = False) -> bool:
+        """
+        Private helper method to execute a query and handle connection pooling.
+        """
+        conn = None
+        try:
+            conn = self.db_instance.get_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, data)
+                if commit:
+                    conn.commit()
+                return True
+        except (psycopg2.DatabaseError, Exception) as e:
+            print(f"Database error: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                self.db_instance.put_connection(conn)
+
+    def _execute_fetch_query(self, query: str, data: Tuple = None) -> List:
+        """
+        Private helper method to execute a fetch query.
+        """
+        conn = None
+        try:
+            conn = self.db_instance.get_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, data)
+                    return cur.fetchall()
+        except (psycopg2.DatabaseError, Exception) as e:
+            print(f"Database error: {e}")
+            return []
+        finally:
+            if conn:
+                self.db_instance.put_connection(conn)
+        return []
+
+    def get_top_hundred_with_artist_info(self) -> list:
+        """
+        Retrieves all trackIDs and artistIDs from top_hundered_tracks.
+        """
+        query = """
+            SELECT t.trackid, ti.artistid 
+            FROM top_hundered_tracks t
+            JOIN trackinfo ti ON t.trackid = ti.trackid;
+        """
+        return self._execute_fetch_query(query)
 
     def insert_user_info(self, data: str) -> bool:
-        """
-        inserts user info into the database
-        :param data: str -> username
-        :return:
-        """
-        try:
-            with self.db_instance.pool.getconn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("insert into user_info (username) values (%s)", (data,))
-                conn.commit()
-                return True
-
-        except (psycopg2.DatabaseError, Exception) as e:
-            print(f"Error occurred while inserting user info: {e}")
-            return False
+        query = "insert into user_info (username) values (%s)"
+        return self._execute_query(query, (data,), commit=True)
 
     def insert_track_info(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO trackinfo (trackid, trackname, artistname, artistid, releasedate) 
+            VALUES (%s, %s, %s, %s, %s) 
+            ON CONFLICT (trackid) DO NOTHING
         """
-        inserts track info into the database
-        :param data: Tuple -> track_id, track_name, artist_name, artistID, release_date
-        :return:
-        """
-        try:
-            with self.db_instance.pool.getconn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("insert into track_info (track_id, track_name, artist_name, artistID, release_date) values (%s, %s, %s, %s, %s)", (data))
-                conn.commit()
-                return True
-
-        except (psycopg2.DatabaseError, Exception) as e:
-            print(f"Error occurred while inserting track info: {e}")
-            return False
+        return self._execute_query(query, data, commit=True)
 
     def insert_song_details(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO songdetails (trackid, trackname, artistname, albumname, releasedate, durationms, popularity, explicit, tracknumber, discnumber, previewurl, spotifyurl) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (trackid) DO NOTHING
         """
-        inserts song details into the database
-        :param data:
-        :return: Tuple -> track_id, track_name, artist_name, albumName, release_date, duration_ms, popularity, explicit, track_number, disc_number, preview_url, spotify_url
-        """
-        try:
-            with self.db_instance.pool.getconn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("insert into song_details (track_id, track_name, artist_name, albumName, release_date, duration_ms, popularity, explicit, track_number, disc_number, preview_url, spotify_url) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (data))
-                conn.commit()
-                return True
-
-        except (psycopg2.DatabaseError, Exception) as e:
-            print(f"Error occurred while inserting song details: {e}")
-            return False
+        return self._execute_query(query, data, commit=True)
 
     def insert_artist_details(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO artistdetails (artistid, artistname, genres, popularity, followers, spotifyurl) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (artistid) DO NOTHING
         """
-        inserts artist details into the database
-        :param data: Tuple -> artist_id, artist_name, genres, popularity, followers, spotify_url
-        :return:
-        """
-        try:
-            with self.db_instance.pool.getconn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("insert into artist_details (artist_id, artist_name, genres, popularity, followers, spotify_url) values (%s, %s, %s, %s, %s, %s)", (data))
-                conn.commit()
-                return True
+        return self._execute_query(query, data, commit=True)
 
-        except (psycopg2.DatabaseError, Exception) as e:
-            print(f"Error occurred while inserting artist details: {e}")
-            return False
+    def insert_top_hundred_track(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO top_hundered_tracks (trackid, albumname, releasedate) 
+            VALUES (%s, %s, %s)
+            ON CONFLICT (trackid) DO NOTHING
+        """
+        insert_data = (data[0], data[3], data[4])
+        return self._execute_query(query, insert_data, commit=True)
 
     def insert_albums(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO albums (albumid, albumname, releasedate, artistid, spotifyurl, totaltracks)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (albumid) DO NOTHING
         """
-        inserts albums into the database
-        :param data:
-        :return:
+        return self._execute_query(query, data, commit=True)
+        
+    def insert_song_popularity(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO song_popularity (trackid, popularity)
+            VALUES (%s, %s)
+            ON CONFLICT (trackid) DO UPDATE SET popularity = EXCLUDED.popularity
         """
+        return self._execute_query(query, data, commit=True)
+
+    def insert_artist_popularity(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO artist_popularity (artistid, popularity)
+            VALUES (%s, %s)
+            ON CONFLICT (artistid) DO UPDATE SET popularity = EXCLUDED.popularity
+        """
+        return self._execute_query(query, data, commit=True)
+
+    def insert_artist_genre(self, data: Tuple) -> bool:
+        query = """
+            INSERT INTO artist_genres (artistid, genre)
+            VALUES (%s, %s)
+            ON CONFLICT (artistid, genre) DO NOTHING
+        """
+        return self._execute_query(query, data, commit=True)
+
+    def close_pool(self):
+        if self.db_instance:
+            self.db_instance.closeall()
