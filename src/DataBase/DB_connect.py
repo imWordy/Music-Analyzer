@@ -66,7 +66,7 @@ class DB_connect:
         try:
             config_params = self._load_config()
 
-            self.pool = pool.SimpleConnectionPool(minconn=1,
+            self.pool = pool.ThreadedConnectionPool(minconn=1,
                                                     maxconn=10,
                                                     **config_params
                                                     )

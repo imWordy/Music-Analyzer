@@ -1,3 +1,5 @@
+
+
 create table user_info(
     id uuid primary key default gen_random_uuid(),
     username varchar(40) not null
@@ -41,7 +43,7 @@ create table artistDetails(
 );
 
 CREATE TABLE Albums (
-    albumID VARCHAR(200) PRIMARY KEY, -- Changed to VARCHAR to store Spotify ID
+    albumID VARCHAR(200) PRIMARY KEY,
     albumName VARCHAR(200) NOT NULL,
     releaseDate VARCHAR(100),
     artistID VARCHAR(100),
@@ -79,7 +81,7 @@ CREATE TABLE User_Listening_History (
 );
 
 create table song_Popularity(
-    trackID varchar(200) primary key, -- Added primary key
+    trackID varchar(200) primary key,
     popularity int,
     CONSTRAINT song_Popularity_trackID_fkey
         foreign key (trackID)
@@ -87,7 +89,7 @@ create table song_Popularity(
 );
 
 create table artist_popularity(
-    artistID varchar(200) primary key, -- Added primary key
+    artistID varchar(200) primary key,
     popularity int,
     CONSTRAINT artist_popularity_artistID_fkey
         foreign key (artistID)
