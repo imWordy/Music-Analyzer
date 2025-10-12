@@ -1,5 +1,3 @@
-
-
 create table user_info(
     id uuid primary key default gen_random_uuid(),
     username varchar(40) not null

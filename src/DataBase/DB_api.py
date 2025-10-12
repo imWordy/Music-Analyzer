@@ -3,12 +3,12 @@ from typing import Tuple, List
 import psycopg2
 from . import DB_connect
 
-class DB_api:
+class DB_api(DB_connect.DB_connect):
     """
     Class to interact with the database.
     """
     def __init__(self):
-        self.db_instance = DB_connect.DB_connect()
+        super().__init__()
 
     def _execute_query(self, query: str, data: Tuple = None, commit: bool = False) -> bool:
         """
@@ -16,7 +16,7 @@ class DB_api:
         """
         conn = None
         try:
-            conn = self.db_instance.get_connection()
+            conn = self.get_connection()
             if conn:
                 with conn.cursor() as cur:
                     cur.execute(query, data)
@@ -30,7 +30,7 @@ class DB_api:
             return False
         finally:
             if conn:
-                self.db_instance.put_connection(conn)
+                self.put_connection(conn)
 
     def _execute_fetch_query(self, query: str, data: Tuple = None) -> List:
         """
@@ -38,7 +38,7 @@ class DB_api:
         """
         conn = None
         try:
-            conn = self.db_instance.get_connection()
+            conn = self.get_connection()
             if conn:
                 with conn.cursor() as cur:
                     cur.execute(query, data)
@@ -48,7 +48,7 @@ class DB_api:
             return []
         finally:
             if conn:
-                self.db_instance.put_connection(conn)
+                self.put_connection(conn)
         return []
 
     def _execute_many_query(self, query: str, data: List[Tuple], commit: bool = False) -> bool:
@@ -57,7 +57,7 @@ class DB_api:
         """
         conn = None
         try:
-            conn = self.db_instance.get_connection()
+            conn = self.get_connection()
             if conn:
                 with conn.cursor() as cur:
                     cur.executemany(query, data)
@@ -71,7 +71,7 @@ class DB_api:
             return False
         finally:
             if conn:
-                self.db_instance.put_connection(conn)
+                self.put_connection(conn)
 
     def get_top_hundred_with_artist_info(self) -> list:
         """
@@ -162,5 +162,5 @@ class DB_api:
         return self._execute_query(query, data, commit=True)
 
     def close_pool(self):
-        if self.db_instance:
-            self.db_instance.closeall()
+        if self:
+            self.closeall()
