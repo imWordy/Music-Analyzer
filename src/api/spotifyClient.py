@@ -1,13 +1,11 @@
 # Client Setup for Spotify API Happens here
 
 import os
+import queue
 import requests
-import webbrowser
 from dotenv import load_dotenv
 from urllib.parse import urlencode, urlparse, parse_qs
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
-from typing import Tuple, List, Dict
+from typing import List, Dict
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 envPath = os.path.join(projectRoot, "config", ".env.example")
@@ -24,10 +22,7 @@ class SpotifyClient:
 
     def authenticate(self) -> str:
         """
-        Handles Client Credentials Flow:
-        Only useful for public data (tracks, albums, artists).
-        :param:
-        :return: access token
+        Handles Client Credentials Flow.
         """
         authResponse = requests.post(
             self.tokenUrl,
@@ -40,13 +35,9 @@ class SpotifyClient:
         self.accessToken = tokenData["access_token"]
         return self.accessToken
 
-    def authenticateUser(self, scope: str = None) -> str:
+    def get_auth_url(self, scope: str = None) -> str:
         """
-        Handles Authorization Code
-        Opens browser for user login and permission grant.
-        Required for personal/user-specific data and audio features.
-        :param: scope: str -> optional, defaults to "user-read-recently-played user-top-read"
-        :return: access token
+        Gets the URL for user authentication.
         """
         if scope is None:
             scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read")
@@ -58,37 +49,18 @@ class SpotifyClient:
             "redirect_uri": self.redirectUri,
             "scope": scope
         })
-        url = f"{authUrl}?{queryParams}"
+        return f"{authUrl}?{queryParams}"
 
-        # Container to capture code from redirect
-        codeContainer = {}
+    def fetch_token_from_url(self, url: str) -> dict:
+        """
+        Fetches the access token from the redirect URL.
+        """
+        query = parse_qs(urlparse(url).query)
+        if "code" not in query:
+            raise Exception("Authentication failed: No code received.")
+        
+        code = query["code"][0]
 
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                query = parse_qs(urlparse(self.path).query)
-                if "code" in query:
-                    codeContainer["code"] = query["code"][0]
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(b"Authentication successful. You can close this window now.")
-                else:
-                    self.send_response(400)
-                    self.end_headers()
-
-        # Start temporary server for callback
-        server = HTTPServer(("127.0.0.1", 8888), Handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-
-        # Open login page
-        webbrowser.open(url)
-
-        # Wait for redirect
-        while "code" not in codeContainer:
-            pass
-        server.shutdown()
-        code = codeContainer["code"]
-
-        # Exchange code for tokens
         tokenResponse = requests.post(
             self.tokenUrl,
             data={
@@ -99,19 +71,16 @@ class SpotifyClient:
             auth=(self.clientId, self.clientSecret)
         )
         if tokenResponse.status_code != 200:
-            raise Exception(f"Failed user authentication: {tokenResponse.status_code}")
+            raise Exception(f"Failed user authentication: {tokenResponse.status_code} | {tokenResponse.text}")
 
         tokenData = tokenResponse.json()
         self.accessToken = tokenData["access_token"]
         self.refreshToken = tokenData.get("refresh_token")
-        return self.accessToken
+        return {"method": "user_login", "token": self.accessToken}
 
     def refreshAccessToken(self):
         """
         Refreshes the access token using refresh token.
-        Only needed for user login flow.
-        :param:
-        :return: access token
         """
         response = requests.post(
             self.tokenUrl,
@@ -136,21 +105,13 @@ class SpotifyClient:
                     query: str = None,
                     limit: int = 10) -> List[Dict]:
         """
-        this function searches the track in the spotify database using any of the given data points
-        :param track:
-        :param artist:
-        :param album:
-        :param genre:
-        :param year:
-        :param query:
-        :param limit:
-        :return: tracks -> list of dictionaries
+        Searches for a track on Spotify.
         """
         if not self.accessToken:
             self.authenticate()
 
-        if not (track or artist or album or genre or year or query):
-            raise ValueError("You must provide at least a query or one filter (track, artist, album, genre, year).")
+        if not any([track, artist, album, genre, year, query]):
+            raise ValueError("You must provide at least a query or one filter.")
 
         queryParts = []
         if track: queryParts.append(f"track:{track}")
@@ -160,34 +121,25 @@ class SpotifyClient:
         if year: queryParts.append(f"year:{year}")
 
         finalQuery = " ".join(queryParts) if queryParts else query
-        finalQuery = finalQuery.strip()
-        print(f"[DEBUG] Final query sent to Spotify: {finalQuery}")
-
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = "https://api.spotify.com/v1/search"
-        params = {"q": finalQuery, "type": "track", "limit": limit}
+        params = {"q": finalQuery.strip(), "type": "track", "limit": limit}
 
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
             raise Exception(f"Searching failed: {response.status_code} | {response.text}")
 
-        results = response.json()
-        tracks = []
-        items = results.get("tracks", {}).get("items", [])
-        if not items:
-            return []
-
-        for i in items:
-            trackInfo = {
+        items = response.json().get("tracks", {}).get("items", [])
+        return [
+            {
                 "trackID": i["id"],
                 "trackName": i["name"],
                 "artistName": i["artists"][0]["name"],
                 "artistID": i["artists"][0]["id"],
                 "albumName": i["album"]["name"],
                 "releaseDate": i["album"]["release_date"]
-            }
-            tracks.append(trackInfo)
-        return tracks
+            } for i in items
+        ]
 
     def getSongDetails(self, trackId):
         """Fetch detailed metadata for a specific track."""
@@ -218,7 +170,7 @@ class SpotifyClient:
         }
 
     def getArtistDetails(self, artistId):
-        """Fetch metadata for an artist (name, genres, popularity, followers)."""
+        """Fetch metadata for an artist."""
         if not self.accessToken:
             self.authenticate()
 
@@ -230,12 +182,10 @@ class SpotifyClient:
             raise Exception(f"Fetching artist details failed: {response.status_code}")
 
         artist = response.json()
-        genres = artist.get("genres", []) or ["Unknown"]
-
         return {
             "artistID": artist["id"],
             "artistName": artist["name"],
-            "genres": genres,
+            "genres": artist.get("genres", []),
             "popularity": artist["popularity"],
             "followers": artist["followers"]["total"],
             "spotifyUrl": artist["external_urls"]["spotify"]
@@ -243,11 +193,10 @@ class SpotifyClient:
 
     def getRecentlyPlayed(self, limit=20):
         """
-        Fetch user's recently played tracks (up to last 50).
-        Requires user login scope: user-read-recently-played
+        Fetch user's recently played tracks.
         """
         if not self.accessToken:
-            self.authenticateUser()
+            raise Exception("User not authenticated.")
 
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = "https://api.spotify.com/v1/me/player/recently-played"
@@ -262,12 +211,9 @@ class SpotifyClient:
     def getTopItems(self, item_type="tracks", time_range="medium_term", limit=20):
         """
         Fetch user's top tracks or artists.
-        item_type = "tracks" or "artists"
-        time_range = "short_term" (4 weeks), "medium_term" (6 months), "long_term" (years)
-        Requires user login scope: user-top-read
         """
         if not self.accessToken:
-            self.authenticateUser()
+            raise Exception("User not authenticated.")
 
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = f"https://api.spotify.com/v1/me/top/{item_type}"
@@ -281,13 +227,11 @@ class SpotifyClient:
 
     def getPlaylistTracks(self, playlistUrlOrId, limit=100):
         """
-        Fetch all tracks and metadata from a given public playlist.
-        Uses Client Credentials Flow (no user login required).
+        Fetch all tracks from a public playlist.
         """
         if not self.accessToken:
             self.authenticate()
 
-        # Extract playlist ID from full URL if needed
         if "spotify.com" in playlistUrlOrId:
             playlistId = playlistUrlOrId.split("/")[-1].split("?")[0]
         else:
@@ -295,7 +239,7 @@ class SpotifyClient:
 
         headers = {"Authorization": f"Bearer {self.accessToken}"}
         url = f"https://api.spotify.com/v1/playlists/{playlistId}/tracks"
-
+        
         tracks = []
         params = {"limit": 100, "offset": 0}
 
@@ -311,7 +255,7 @@ class SpotifyClient:
 
             for i in items:
                 track = i.get("track")
-                if track:
+                if track and track.get("id"):
                     trackInfo = {
                         "trackID": track["id"],
                         "trackName": track["name"],
@@ -319,12 +263,9 @@ class SpotifyClient:
                         "artistID": track["artists"][0]["id"],
                         "albumName": track["album"]["name"],
                         "releaseDate": track["album"]["release_date"],
-                        "popularity": track.get("popularity"),
-                        "spotifyUrl": track["external_urls"]["spotify"]
                     }
                     tracks.append(trackInfo)
 
-            # Pagination check
             if data.get("next"):
                 params["offset"] += params["limit"]
             else:

@@ -75,10 +75,21 @@ class DB_api(DB_connect.DB_connect):
 
     def get_top_hundred_with_artist_info(self) -> list:
         """
-        Retrieves all trackIDs and artistIDs from top_hundered_tracks.
+        Retrieves all trackIDs and artistIDs from top_hundred_tracks.
         """
         query = """
             SELECT t.trackid, ti.artistid 
+            FROM top_hundered_tracks t
+            JOIN trackinfo ti ON t.trackid = ti.trackid;
+        """
+        return self._execute_fetch_query(query)
+
+    def get_top_hundred_tracks_for_display(self) -> list:
+        """
+        Retrieves top 100 tracks with track name, artist name, and album name.
+        """
+        query = """
+            SELECT ti.trackname, ti.artistname, t.albumname, t.releasedate
             FROM top_hundered_tracks t
             JOIN trackinfo ti ON t.trackid = ti.trackid;
         """
