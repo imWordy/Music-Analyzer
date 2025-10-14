@@ -9,7 +9,7 @@ class reccobeats:
     def __init__(self):
         self.BaseURL = "https://api.reccobeats.com"
     
-    def request(method: str, payload: str) -> Dict:
+    def request(self, method: str, payload: str) -> Dict:
         """
         Adapter to make requests to the API
         
