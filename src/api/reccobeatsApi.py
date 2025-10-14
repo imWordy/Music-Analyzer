@@ -24,7 +24,7 @@ class reccobeats:
         header = {
             'Accept': 'application/json'
         }
-        conn.request("GET", f"/v1/{method}", payload, header)
+        conn.request("GET", f"/v1/{method}", f"?ids={payload}", header)
         res = conn.getresponse()
         data=res.read()
         return data.decode("utf-8")
