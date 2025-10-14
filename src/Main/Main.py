@@ -12,39 +12,56 @@ from DataBase.DB_api import DB_api
 class Session:
     def __init__(self):
         """
-        Initialize a session, and creates an authentication object.
+        Initialize a Session for interacting with Spotify.
+
+        Creates the underlying SpotifyClient instance that handles all
+        authentication and API requests.
         """
         self._session = SpotifyClient()
 
     def authenticate_client(self) -> dict:
         """
-        Authenticate using client credentials flow.
+        Authenticate the app using the Client Credentials flow.
 
         Returns:
-            dict: Contains authentication method and token
+            dict: A payload containing:
+                - method (str): Authentication method identifier.
+                - token (str): Bearer token for API calls that do not require user scope.
         """
         token = self._session.authenticate()
         return {"method": "client_credentials", "token": token}
 
     def authenticate_user(self) -> dict:
         """
-        Authenticate using the user login flow
+        Authenticate a user using the Authorization Code (user login) flow.
 
         Returns:
-            dict: Contains authentication method and token
+            dict: A payload containing:
+                - method (str): Authentication method identifier.
+                - token (str): Bearer token tied to the authenticated user.
         """
         token = self._session.authenticateUser()
         return {"method": "user_login", "token": token}
 
     @property
     def session(self):
+        """
+        Spotify client accessor.
+
+        Returns:
+            SpotifyClient: The configured Spotify API client.
+        """
         return self._session
 
 
 class data_Retrieval():
     def __init__(self, db_api: DB_api, spotify_client: SpotifyClient):
         """
-        Defines different methods of data retrieval from spotify
+        Data retrieval utilities for Spotify resources.
+
+        Args:
+            db_api (DB_api): Database access layer for persisting fetched data.
+            spotify_client (SpotifyClient): Authenticated Spotify client.
 
         """
         self.db_api = db_api
@@ -58,66 +75,69 @@ class data_Retrieval():
             track_id (str): Spotify track ID
 
         Returns:
-            dict: Track details from Spotify API
+            dict: Track details as returned by the Spotify API.
         """
         return self.spotify_client.getSongDetails(track_id)
 
     def get_artist_details(self, artist_id) -> dict:
         """
-        Get detailed information for a specific artist.
+        Retrieve detailed information for a specific artist.
 
         Args:
-            artist_id (str): Spotify artist ID
+            artist_id (str): Spotify artist ID.
 
         Returns:
-            dict: Artist details from Spotify API
+            dict: Artist details as returned by the Spotify API.
         """
         return self.spotify_client.getArtistDetails(artist_id)
 
     def get_recently_played(self, limit=20) -> list:
         """
-        Get user's recently played tracks.
+        Retrieve the authenticated user's recently played tracks.
 
         Args:
-            limit (int): Maximum number of tracks to return
+            limit (int, optional): Maximum number of tracks to return. Defaults to 20.
 
         Returns:
-            list: Recently played tracks
+            list: A list of play history items.
         """
         return self.spotify_client.getRecentlyPlayed(limit)
 
     def get_top_tracks(self, limit=20, time_range="medium_term") -> list:
         """
-        Get user's top tracks.
+        Retrieve the authenticated user's top tracks.
 
         Args:
-            limit (int): Maximum number of tracks to return
-            time_range (str): Time range to consider ('short_term', 'medium_term', 'long_term')
+            limit (int, optional): Maximum number of tracks to return. Defaults to 20.
+            time_range (str, optional): 'short_term' | 'medium_term' | 'long_term'. Defaults to 'medium_term'.
 
         Returns:
-            list: User's top tracks
+            list: A list of top track items.
         """
         return self.spotify_client.getTopItems(item_type="tracks", time_range=time_range, limit=limit)
 
     def get_top_artists(self, limit=20, time_range="medium_term") -> list:
         """
-        Get user's top artists.
+        Retrieve the authenticated user's top artists.
 
         Args:
-            limit (int): Maximum number of artists to return
-            time_range (str): Time range to consider ('short_term', 'medium_term', 'long_term')
+            limit (int, optional): Maximum number of artists to return. Defaults to 20.
+            time_range (str, optional): 'short_term' | 'medium_term' | 'long_term'. Defaults to 'medium_term'.
 
         Returns:
-            list: User's top artists
+            list: A list of top artist items.
         """
         return self.spotify_client.getTopItems(item_type="artists", time_range=time_range, limit=limit)
 
     def get_top_100_playlist(self) -> bool:
         """
-        Get Spotify Global Top 100 playlist tracks and store in database.
+        Fetch the Spotify Global Top 100 playlist tracks and persist them.
+
+        Retrieves tracks from a fixed playlist, stores basic track info, and
+        saves a snapshot table for the Top 100 list.
 
         Returns:
-            bool: True if successful, False otherwise.
+            bool: True on success, False when playlist retrieval fails.
         """
         playlist_id = "5ABHKGoOzxkaa28ttQV9sE"  # fixed playlist
         playlist_tracks = self.spotify_client.getPlaylistTracks(playlist_id)
@@ -158,17 +178,37 @@ class data_Retrieval():
 
 class data_Processing:
     def __init__(self, db_api: DB_api, spotify_client: SpotifyClient):
+        """
+        Data processing utilities for enriching and persisting derived entities.
+
+        Args:
+            db_api (DB_api): Database access layer for writes.
+            spotify_client (SpotifyClient): Authenticated Spotify client.
+        """
         self.db_api = db_api
         self.spotify_client = spotify_client
         self._lock = threading.Lock()
         self.threads = []
 
     def thread_init(self, tracks_chunk: list[tuple[str, str]], thread_id: int) -> None:
+        """
+        Spawn a worker thread to process a chunk of tracks.
+
+        Args:
+            tracks_chunk (list[tuple[str, str]]): List of (track_id, artist_id) pairs.
+            thread_id (int): Numerical identifier for logging.
+        """
         thread = threading.Thread(target=self.populate_derived_data, args=(tracks_chunk, thread_id,))
         thread.start()
         self.threads.append(thread)
 
     def populate_derived_data_threading(self):
+        """
+        Populate derived data for Top 100 tracks using multiple threads.
+
+        Splits available tracks into up to 5 chunks, processes each chunk
+        concurrently, and waits for completion.
+        """
         try:
             all_tracks = self.db_api.get_top_hundred_with_artist_info()
             if not all_tracks:
@@ -199,8 +239,15 @@ class data_Processing:
 
     def populate_derived_data(self, tracks: list[tuple[str, str]], thread_id: int) -> None:
         """
-        Fetches detailed information for tracks in the top-100 list and
-        populates the derived database tables.
+        Enrich tracks with song, album, and artist details; persist derived tables.
+
+        For each (track_id, artist_id) pair, fetches details from the Spotify API
+        and writes to dedicated database tables such as popularity, songs, albums,
+        artists, and artist genres.
+
+        Args:
+            tracks (list[tuple[str, str]]): Track and artist identifiers to process.
+            thread_id (int): Numerical identifier for logging.
         """
         try:
             for i, (track_id, artist_id) in enumerate(tracks):
@@ -216,6 +263,22 @@ class data_Processing:
                 if song_details:
                     song_pop_data = (song_details['trackID'], song_details['popularity'])
                     self.db_api.insert_song_popularity(song_pop_data)
+
+                    song_details_data = (
+                        song_details['trackID'],
+                        song_details['trackName'],
+                        song_details['artistName'],
+                        song_details['album']['name'],
+                        song_details['album']['release_date'],
+                        song_details['durationMs'],
+                        song_details['popularity'],
+                        song_details['explicit'],
+                        song_details['trackNumber'],
+                        song_details['discNumber'],
+                        song_details['previewUrl'],
+                        song_details['spotifyUrl']
+                    )
+                    self.db_api.insert_song_details(song_details_data)
 
                     album = song_details.get('album', {})
                     if album.get('id'):
@@ -253,11 +316,19 @@ class data_Processing:
 
 class main(Session):
     def __init__(self):
+        """
+        Application entry point orchestrating authentication, retrieval, and processing.
+
+        Initializes database access, retrieval helpers, and processing pipelines.
+        """
         super().__init__()
         self.db_api = DB_api()
         self.data_Retrieval = data_Retrieval(self.db_api, self.session)
         self.data_Processing = data_Processing(self.db_api, self.session)
 
     def close_app(self):
+        """
+        Gracefully shut down the application and close DB connections.
+        """
         self.db_api.close_pool()
         print("Application finished and database connections closed.")

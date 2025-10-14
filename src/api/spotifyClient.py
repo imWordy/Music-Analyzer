@@ -154,19 +154,23 @@ class SpotifyClient:
             raise Exception(f"Fetching song details failed: {response.status_code}")
 
         track = response.json()
+        if not track or not track.get("album"):
+            return None # Return None if track data is incomplete
+
         return {
-            "trackID": track["id"],
-            "trackName": track["name"],
+            "trackID": track.get("id"),
+            "trackName": track.get("name"),
             "artistName": track["artists"][0]["name"],
             "albumName": track["album"]["name"],
             "releaseDate": track["album"]["release_date"],
-            "durationMs": track["duration_ms"],
-            "popularity": track["popularity"],
-            "explicit": track["explicit"],
-            "trackNumber": track["track_number"],
-            "discNumber": track["disc_number"],
-            "previewUrl": track["preview_url"],
-            "spotifyUrl": track["external_urls"]["spotify"]
+            "durationMs": track.get("duration_ms"),
+            "popularity": track.get("popularity"),
+            "explicit": track.get("explicit"),
+            "trackNumber": track.get("track_number"),
+            "discNumber": track.get("disc_number"),
+            "previewUrl": track.get("preview_url"),
+            "spotifyUrl": track.get("external_urls", {}).get("spotify"),
+            "album": track.get("album")
         }
 
     def getArtistDetails(self, artistId):
