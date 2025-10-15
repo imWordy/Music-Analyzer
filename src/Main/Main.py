@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from api.spotifyClient import SpotifyClient
 from DataBase.DB_api import DB_api
+from api.reccobeatsApi import reccobeats
 
 class Session:
     def __init__(self):
@@ -175,9 +176,21 @@ class data_Retrieval():
             self.db_api.insert_top_hundred_tracks(top_hundred_tracks_to_insert)
 
         return True
+    
+    def getAudioFeatures(self, track_ids: list) -> list:
+        """
+        Retrieve audio features for multiple tracks using the reccobeats API.
+
+        Args:
+            track_ids (list): List of Spotify track IDs.
+        Returns:
+            list: A list of audio feature dictionaries for the provided track IDs.
+        """
+        reccobeats_api = reccobeats()
+        return reccobeats_api.getmany_Audio_Features(track_ids)
 
 class data_Processing:
-    def __init__(self, db_api: DB_api, spotify_client: SpotifyClient):
+    def __init__(self, db_api: DB_api, spotify_client: SpotifyClient, reccobeat: reccobeats):
         """
         Data processing utilities for enriching and persisting derived entities.
 
@@ -187,6 +200,7 @@ class data_Processing:
         """
         self.db_api = db_api
         self.spotify_client = spotify_client
+        self.reccobeat = reccobeat
         self._lock = threading.Lock()
         self.threads = []
 
@@ -317,7 +331,7 @@ class data_Processing:
             with self._lock:
                 print(f"Thread {thread_id} : Retreiving Audio Features for {len(tracks)} tracks.")
                 track_ids = [track_id for track_id, _ in tracks]
-                audio_features = self.spotify_client.getAudioFeatures(track_ids)
+                audio_features = self.reccobeat.getAudioFeatures(track_ids)
                 for feature in audio_features:
                     if feature:  # Ensure feature is not None
                         feature_data = (
