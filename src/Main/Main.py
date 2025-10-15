@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -331,26 +332,32 @@ class data_Processing:
             with self._lock:
                 print(f"Thread {thread_id} : Retreiving Audio Features for {len(tracks)} tracks.")
                 track_ids = [track_id for track_id, _ in tracks]
-                audio_features = self.reccobeat.getAudioFeatures(track_ids)
-                for feature in audio_features:
-                    if feature:  # Ensure feature is not None
-                        feature_data = (
-                            feature['id'],
-                            feature['danceability'],
-                            feature['energy'],
-                            feature['key'],
-                            feature['loudness'],
-                            feature['mode'],
-                            feature['speechiness'],
-                            feature['acousticness'],
-                            feature['instrumentalness'],
-                            feature['liveness'],
-                            feature['valence'],
-                            feature['tempo'],
-                            feature['duration_ms'],
-                            feature['time_signature']
-                        )
-                        self.db_api.insertmany_audio_features(feature_data)
+                audio_features = self.reccobeat.getmany_Audio_Features(track_ids)
+                for feature_str in audio_features:
+                    if not feature_str:
+                        continue
+                    try:
+                        feature = json.loads(feature_str)
+                        if feature:  # Ensure feature is not None
+                            feature_data = (
+                                feature['id'],
+                                feature['danceability'],
+                                feature['energy'],
+                                feature['key'],
+                                feature['loudness'],
+                                feature['mode'],
+                                feature['speechiness'],
+                                feature['acousticness'],
+                                feature['instrumentalness'],
+                                feature['liveness'],
+                                feature['valence'],
+                                feature['tempo'],
+                                feature['duration_ms'],
+                                feature['time_signature']
+                            )
+                            self.db_api.insertmany_audio_features(feature_data)
+                    except json.JSONDecodeError:
+                        print(f"  - Warning: Could not decode audio features in thread {thread_id}. Raw data: '{feature_str}'")
         
         except Exception as e:
             print(f"An error occurred while retrieving audio features in thread {thread_id}: {e}")
@@ -365,7 +372,7 @@ class main(Session):
         super().__init__()
         self.db_api = DB_api()
         self.data_Retrieval = data_Retrieval(self.db_api, self.session)
-        self.data_Processing = data_Processing(self.db_api, self.session)
+        self.data_Processing = data_Processing(self.db_api, self.session, reccobeats())
 
     def close_app(self):
         """

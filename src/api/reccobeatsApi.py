@@ -1,4 +1,5 @@
-import http.client
+import requests
+import json
 from typing import List, Dict
 
 """
@@ -8,28 +9,8 @@ An API adapter to retrieve data from reccobeats
 class reccobeats:
     def __init__(self):
         self.BaseURL = "https://api.reccobeats.com"
-    
-    def request(self, method: str, payload: str) -> str:
-        """
-        Adapter to make requests to the API
-        
-        Args:
-            method: The type of API call
-            payload: The input parameters of the API call
-        
-        Returns:
-            Dictionary for the Returned JSON
-        """
-        conn = http.client.HTTPSConnection("api.reccobeats.com")
-        header = {
-            'Accept': 'application/json'
-        }
-        conn.request("GET", f"/v1/{method}?ids={payload}", headers=header)
-        res = conn.getresponse()
-        data = res.read()
-        return eval(data.decode("utf-8"))
 
-    def getmany_Audio_Features(self, tracks: List) -> str:
+    def getmany_Audio_Features(self, tracks: List[str]) -> List[Dict]:
         """
         Wrapper to perform correct API call for audio features
         
@@ -37,14 +18,29 @@ class reccobeats:
             tracks: A list of all the tracks to get Audio features for
 
         Returns:
-            Dictionary of Returned JSON
+            A list of dictionaries of audio features
         """
-        payload = ""
-        for i in tracks:
-            payload = payload + i + ','
+        if not tracks:
+            return []
+            
+        payload = ",".join(tracks)
+        url = f"{self.BaseURL}/v1/audio-features"
+        headers = {'Accept': 'application/json'}
+        params = {'ids': payload}
         
-        return self.request("audio-features", payload[:-1])
-    
-    
-
-
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            data = response.json()
+            # The API is expected to return a dictionary with a 'content' key.
+            if isinstance(data, dict) and 'content' in data:
+                return data['content']
+            else:
+                print(f"Unexpected response format from reccobeats API: {data}")
+                return []
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching from reccobeats API: {e}")
+            return []
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON from reccobeats API. Response: {response.text}")
+            return []
