@@ -334,17 +334,14 @@ class data_Processing:
                 track_ids = [track_id for track_id, _ in tracks]
                 audio_features = self.reccobeat.getmany_Audio_Features(track_ids)
                 features_to_insert = []
+                counter=0
                 for feature in audio_features:
                     if not feature:
                         continue
                     try:
-                        # Build a 13-value tuple to match the INSERT placeholders:
-                        # (spotify_track_id, trackid, danceability, energy, key, loudness, mode,
-                        #  speechiness, acousticness, instrumentalness, liveness, valence, tempo)
-                        spotify_id = feature['id']
                         feature_data = (
-                            spotify_id,                # spotify_track_id
-                            spotify_id,                # trackid (same as spotify id in our schema)
+                            track_ids[counter],           # spotify_track_id
+                            feature['id'],                # trackid (same as spotify id in our schema)
                             feature['danceability'],
                             feature['energy'],
                             feature['key'],
@@ -362,6 +359,7 @@ class data_Processing:
                         print(f"  - Warning: Missing key {e} in audio features in thread {thread_id}. Skipping item.")
                     except json.JSONDecodeError:
                         print(f"  - Warning: Could not decode audio features in thread {thread_id}.")
+                    counter=+1
 
                 if features_to_insert:
                     self.db_api.insertmany_audio_features(features_to_insert)
