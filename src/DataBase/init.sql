@@ -102,3 +102,23 @@ create table top_hundered_tracks(
         foreign key (trackID)
             references trackinfo(trackID)
 );
+
+create table audio_features(
+    trackID varchar(200) primary key,
+    danceability float,
+    energy float,
+    key int,
+    loudness float,
+    mode int,
+    speechiness float,
+    acousticness float,
+    instrumentalness float,
+    liveness float,
+    valence float,
+    tempo float,
+    duration_ms int,
+
+    CONSTRAINT audio_features_trackID_fkey
+        foreign key (trackID)
+            references trackinfo(trackID)
+);

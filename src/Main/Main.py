@@ -312,7 +312,34 @@ class data_Processing:
 
         except Exception as e:
             print(f"An error occurred while processing derived data in thread {thread_id}: {e}")
-
+        
+        try:
+            with self._lock:
+                print(f"Thread {thread_id} : Retreiving Audio Features for {len(tracks)} tracks.")
+                track_ids = [track_id for track_id, _ in tracks]
+                audio_features = self.spotify_client.getAudioFeatures(track_ids)
+                for feature in audio_features:
+                    if feature:  # Ensure feature is not None
+                        feature_data = (
+                            feature['id'],
+                            feature['danceability'],
+                            feature['energy'],
+                            feature['key'],
+                            feature['loudness'],
+                            feature['mode'],
+                            feature['speechiness'],
+                            feature['acousticness'],
+                            feature['instrumentalness'],
+                            feature['liveness'],
+                            feature['valence'],
+                            feature['tempo'],
+                            feature['duration_ms'],
+                            feature['time_signature']
+                        )
+                        self.db_api.insertmany_audio_features(feature_data)
+        
+        except Exception as e:
+            print(f"An error occurred while retrieving audio features in thread {thread_id}: {e}")
 
 class main(Session):
     def __init__(self):
