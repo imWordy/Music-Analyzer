@@ -358,7 +358,7 @@ class data_Processing:
                         print(f"  - Warning: Could not decode audio features in thread {thread_id}.")
                 
                 for i in track_ids:
-                    features_to_insert[0] = i
+                    features_to_insert.insert(0, i)
                 if features_to_insert:
                     self.db_api.insertmany_audio_features(features_to_insert)
         
