@@ -351,8 +351,6 @@ class data_Processing:
                                 feature['liveness'],
                                 feature['valence'],
                                 feature['tempo'],
-                                feature['duration_ms'],
-                                feature['time_signature']
                             )
                             self.db_api.insertmany_audio_features(feature_data)
                     except json.JSONDecodeError:
