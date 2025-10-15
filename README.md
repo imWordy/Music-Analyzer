@@ -10,3 +10,23 @@ This repository aims to collect the huge spotify metadata ( 100 million songs ) 
 - In order to retrieve your personal data from spotify, you'll have to login using your spotify account.
 - The system will do the rest and gather all your data from Spotify Web API
 
+
+## Headless mode
+Run without a GUI using the CLI entrypoint in `src/Main/headless_main.py`.
+
+Prereqs:
+- PostgreSQL reachable per `src/DataBase/database.ini` (see sample `database_ex.ini`).
+- Spotify credentials in `config/.env.example` (or change to your real .env path in `spotifyClient.py`).
+
+Examples:
+- Fetch Global Top 100, store in DB, then process derived data (songs, artists, audio features):
+	- python src/Main/headless_main.py --mode client-top100
+
+- Only run processing for already-fetched Top 100:
+	- python src/Main/headless_main.py --mode process-top100
+
+- Simple client search:
+	- python src/Main/headless_main.py --mode client-search
+
+User-specific flows (recent, top-tracks/artists) require interactive OAuth and are not supported headlessly without pre-provisioned tokens.
+
