@@ -357,6 +357,8 @@ class data_Processing:
                     except json.JSONDecodeError:
                         print(f"  - Warning: Could not decode audio features in thread {thread_id}.")
                 
+                for i in track_ids:
+                    features_to_insert[0] = i
                 if features_to_insert:
                     self.db_api.insertmany_audio_features(features_to_insert)
         

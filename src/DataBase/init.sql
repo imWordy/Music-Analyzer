@@ -104,7 +104,8 @@ create table top_hundered_tracks(
 );
 
 create table audio_features(
-    trackID varchar(200) primary key,
+    spotify_track_id varchar(200) primary key,
+    trackID varchar(200),
     danceability float,
     energy float,
     key int,
@@ -118,7 +119,7 @@ create table audio_features(
     tempo float,
     duration_ms int,
 
-    CONSTRAINT audio_features_trackID_fkey
-        foreign key (trackID)
+    CONSTRAINT audio_features_spotify_track_id_fkey
+        foreign key (spotify_track_id)
             references trackinfo(trackID)
 );

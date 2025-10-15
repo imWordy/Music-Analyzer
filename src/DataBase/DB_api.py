@@ -306,9 +306,9 @@ class DB_api(DB_connect.DB_connect):
             bool: True if insertion was successful, False otherwise.
         """
         query = """
-            INSERT INTO audio_features (trackid, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (trackid) DO NOTHING
+            INSERT INTO audio_features (spotify_track_id, trackid, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (spotify_track_id) DO NOTHING
         """
         return self._execute_many_query(query, data, commit=True)
 
