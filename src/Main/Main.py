@@ -333,6 +333,7 @@ class data_Processing:
                 print(f"Thread {thread_id} : Retreiving Audio Features for {len(tracks)} tracks.")
                 track_ids = [track_id for track_id, _ in tracks]
                 audio_features = self.reccobeat.getmany_Audio_Features(track_ids)
+                features_to_insert = []
                 for feature in audio_features:
                     if not feature:
                         continue
@@ -352,9 +353,12 @@ class data_Processing:
                                 feature['valence'],
                                 feature['tempo'],
                             )
-                            self.db_api.insertmany_audio_features(feature_data)
+                            features_to_insert.append(feature_data)
                     except json.JSONDecodeError:
-                        print(f"  - Warning: Could not decode audio features in thread {thread_id}. Raw data: '{feature_str}'")
+                        print(f"  - Warning: Could not decode audio features in thread {thread_id}.")
+                
+                if features_to_insert:
+                    self.db_api.insertmany_audio_features(features_to_insert)
         
         except Exception as e:
             print(f"An error occurred while retrieving audio features in thread {thread_id}: {e}")
