@@ -9,7 +9,7 @@ class reccobeats:
     def __init__(self):
         self.BaseURL = "https://api.reccobeats.com"
     
-    def request(self, method: str, payload: str) -> Dict:
+    def request(self, method: str, payload: str) -> str:
         """
         Adapter to make requests to the API
         
@@ -24,12 +24,12 @@ class reccobeats:
         header = {
             'Accept': 'application/json'
         }
-        conn.request("GET", f"/v1/{method}", f"?ids={payload}", header)
+        conn.request("GET", f"/v1/{method}?ids={payload}", headers=header)
         res = conn.getresponse()
-        data=res.read()
-        return data.decode("utf-8")
+        data = res.read()
+        return eval(data.decode("utf-8"))
 
-    def getmany_Audio_Features(self, tracks: List) -> Dict:
+    def getmany_Audio_Features(self, tracks: List) -> str:
         """
         Wrapper to perform correct API call for audio features
         
@@ -43,7 +43,7 @@ class reccobeats:
         for i in tracks:
             payload = payload + i + ','
         
-        return self.request("audio-features", payload)
+        return self.request("audio-features", payload[:-1])
     
 
 
