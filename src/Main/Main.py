@@ -333,11 +333,10 @@ class data_Processing:
                 print(f"Thread {thread_id} : Retreiving Audio Features for {len(tracks)} tracks.")
                 track_ids = [track_id for track_id, _ in tracks]
                 audio_features = self.reccobeat.getmany_Audio_Features(track_ids)
-                for feature_str in audio_features:
-                    if not feature_str:
+                for feature in audio_features:
+                    if not feature:
                         continue
                     try:
-                        feature = json.loads(feature_str)
                         if feature:  # Ensure feature is not None
                             feature_data = (
                                 feature['id'],
