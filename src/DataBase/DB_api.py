@@ -128,6 +128,52 @@ class DB_api(DB_connect.DB_connect):
         """
         return self._execute_fetch_query(query)
 
+    def get_track_infos(self, track_ids: List[str]) -> list:
+        """
+        Retrieves track information for a given list of track IDs.
+
+        Args:
+            track_ids (List[str]): A list of track IDs.
+
+        Returns:
+            list: List of tuples containing track information for the specified tracks.
+        """
+        query = """
+            SELECT *
+            FROM trackinfo
+            WHERE trackid = ANY(%s);
+        """
+        return self._execute_fetch_query(query, (track_ids,))
+
+    def get_all_tracks(self) -> list:
+        """
+        Retrieves all tracks from the trackinfo table.
+
+        Returns:
+            list: List of tuples containing all tracks.
+        """
+        query = "SELECT trackid, trackname, artistname FROM trackinfo;"
+        return self._execute_fetch_query(query)
+
+    def get_training_data(self) -> list:
+        """
+        Retrieves the training data for the genre classification model.
+
+        Returns:
+            list: List of tuples containing the training data.
+        """
+        query = """
+            SELECT 
+                af.danceability, af.energy, af.key, af.loudness, af.mode, 
+                af.speechiness, af.acousticness, af.instrumentalness, af.liveness, 
+                af.valence, af.tempo, ad.genres
+            FROM audio_features af
+            JOIN trackinfo ti ON af.trackid = ti.trackid
+            JOIN artistdetails ad ON ti.artistid = ad.artistid
+            WHERE ad.genres IS NOT NULL AND ad.genres != '{}';
+        """
+        return self._execute_fetch_query(query)
+
     def insert_user_info(self, data: str) -> bool:
         """
         Inserts a new user into the user_info table.
@@ -311,6 +357,37 @@ class DB_api(DB_connect.DB_connect):
             ON CONFLICT (spotify_track_id) DO NOTHING
         """
         return self._execute_many_query(query, data, commit=True)
+
+    def get_audio_features_for_top_100(self) -> list:
+        """
+        Retrieves audio features for the top 100 tracks.
+
+        Returns:
+            list: List of tuples containing audio features for the top 100 tracks.
+        """
+        query = """
+            SELECT af.*
+            FROM audio_features af
+            JOIN top_hundered_tracks tht ON af.trackid = tht.trackid;
+        """
+        return self._execute_fetch_query(query)
+
+    def get_audio_features_for_tracks(self, track_ids: List[str]) -> list:
+        """
+        Retrieves audio features for a given list of track IDs.
+
+        Args:
+            track_ids (List[str]): A list of track IDs.
+
+        Returns:
+            list: List of tuples containing audio features for the specified tracks.
+        """
+        query = """
+            SELECT af.*
+            FROM audio_features af
+            WHERE af.trackid = ANY(%s);
+        """
+        return self._execute_fetch_query(query, (track_ids,))
 
     def close_pool(self):
         """
