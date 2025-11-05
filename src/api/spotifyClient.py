@@ -8,7 +8,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from typing import List, Dict
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-envPath = os.path.join(projectRoot, "config", ".env.example")
+envPath = os.path.join(projectRoot, "config", ".env")
 
 class SpotifyClient:
     def __init__(self):
@@ -40,7 +40,7 @@ class SpotifyClient:
         Gets the URL for user authentication.
         """
         if scope is None:
-            scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read")
+            scope = os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-top-read playlist-read-private playlist-read-collaborative")
 
         authUrl = "https://accounts.spotify.com/authorize"
         queryParams = urlencode({
