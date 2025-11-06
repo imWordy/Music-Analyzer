@@ -5,14 +5,16 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QTabWidget,
                              QTableWidget, QTableWidgetItem, QHeaderView, QSplitter, QDialog, 
                              QFrame, QListWidget, QListWidgetItem, QMessageBox, QGridLayout, 
-                             QRadioButton, QButtonGroup)
+                             QRadioButton, QButtonGroup, QComboBox)
 from PySide6.QtCore import QThread, Signal, Qt, QUrl
 from PySide6.QtGui import QFont, QIcon, QPixmap
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
 
 from Main import main as MainApp
-from Analysis import plot_single_feature
+from Analysis import (plot_radar_chart, plot_feature_distribution, 
+                      plot_correlation_heatmap, plot_scatter, find_similar_songs)
 from Model import AnomalyDetector
 
 class Worker(QThread):
@@ -105,38 +107,49 @@ class AuthWidget(QWidget):
         self.auth_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.auth_status_label)
 
+class SimilarSongsDialog(QDialog):
+    def __init__(self, similar_songs_df, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Similar Songs")
+        self.setGeometry(200, 200, 800, 600)
+        layout = QVBoxLayout(self)
+        
+        table = QTableWidget()
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Track", "Artist", "Similarity"])
+        table.setRowCount(len(similar_songs_df))
+
+        for i, row in enumerate(similar_songs_df.itertuples()):
+            table.setItem(i, 0, QTableWidgetItem(row.track_name))
+            table.setItem(i, 1, QTableWidgetItem(row.artist_name))
+            table.setItem(i, 2, QTableWidgetItem(f"{row.similarity:.4f}"))
+        
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(table)
+
 class ComparisonDialog(QDialog):
     def __init__(self, df, track_ids, parent=None):
         super().__init__(parent)
         self.df = df
         self.track_ids = track_ids
         self.setWindowTitle("Compare Audio Features")
-        self.setGeometry(200, 200, 700, 500)
+        self.setGeometry(200, 200, 800, 800)
 
-        main_layout = QHBoxLayout(self)
-        
-        button_layout = QVBoxLayout()
-        self.features = ['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
-        for feature in self.features:
-            btn = QPushButton(feature.capitalize())
-            btn.clicked.connect(lambda checked, f=feature: self.plot_feature(f))
-            button_layout.addWidget(btn)
-        
-        main_layout.addLayout(button_layout)
-
+        main_layout = QVBoxLayout(self)
         self.plot_widget = QWidget()
         self.plot_layout = QVBoxLayout(self.plot_widget)
         main_layout.addWidget(self.plot_widget)
 
-        self.plot_feature(self.features[0])
+        self.plot_radar()
 
-    def plot_feature(self, feature):
+    def plot_radar(self):
         for i in reversed(range(self.plot_layout.count())):
             widget = self.plot_layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
 
-        fig = plot_single_feature(self.df, self.track_ids, feature)
+        features = ['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
+        fig = plot_radar_chart(self.df, self.track_ids, features)
         canvas = FigureCanvas(fig)
         self.plot_layout.addWidget(canvas)
 
@@ -146,7 +159,9 @@ class MusicAnalyzerGUI(QWidget):
         self.main_app = MainApp()
         self.workers = []
         self.setWindowTitle("Music Analyzer")
-        self.setGeometry(100, 100, 1000, 800)
+        self.setGeometry(100, 100, 1200, 800)
+
+        self.set_stylesheet()
 
         csv_file_path = os.path.join(os.path.dirname(__file__), '..', 'DataBase', 'SpotifyAudioFeaturesApril2019.csv')
         try:
@@ -171,7 +186,96 @@ class MusicAnalyzerGUI(QWidget):
         if not self.data_df.empty:
             self.tabs.findChild(QWidget, "Analysis").setEnabled(True)
             self.tabs.findChild(QWidget, "Unique Tracks").setEnabled(True)
+            self.tabs.findChild(QWidget, "Data Exploration").setEnabled(True)
             self.load_all_tracks_for_analysis()
+
+    def set_stylesheet(self):
+        style = """
+        QWidget {
+            background-color: #191414;
+            color: #b3b3b3;
+            font-family: Arial, sans-serif;
+        }
+        QTabWidget::pane {
+            border-top: 2px solid #282828;
+        }
+        QTabBar::tab {
+            background: #191414;
+            color: #b3b3b3;
+            padding: 10px 20px;
+            border: none;
+            border-bottom: 2px solid #191414;
+        }
+        QTabBar::tab:selected {
+            color: #ffffff;
+            border-bottom: 2px solid #1aa34a;
+        }
+        QTabBar::tab:hover {
+            color: #ffffff;
+        }
+        QPushButton {
+            background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #1aa34a, stop: 1 #15883e);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 15px;
+            padding: 10px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #1DB954, stop: 1 #1aa34a);
+        }
+        QPushButton:pressed {
+            background-color: #15883e;
+        }
+        QTableWidget {
+            background-color: #1e1e1e;
+            gridline-color: #282828;
+            selection-background-color: #404040;
+        }
+        QHeaderView::section {
+            background-color: #1e1e1e;
+            color: #b3b3b3;
+            padding: 5px;
+            border: none;
+            border-bottom: 1px solid #404040;
+        }
+        QLineEdit, QComboBox {
+            background-color: #282828;
+            border: 1px solid #404040;
+            border-radius: 5px;
+            padding: 8px;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #282828;
+            selection-background-color: #1DB954;
+        }
+        QFrame {
+            background-color: #1e1e1e;
+            border: 1px solid #282828;
+            border-radius: 5px;
+        }
+        QLabel {
+            font-size: 14px;
+        }
+        QRadioButton::indicator::unchecked {
+            border: 1px solid #b3b3b3;
+            border-radius: 6px;
+            background-color: #282828;
+            width: 12px;
+            height: 12px;
+        }
+        QRadioButton::indicator::checked {
+            border: 1px solid #1DB954;
+            border-radius: 6px;
+            background-color: #1DB954;
+            width: 12px;
+            height: 12px;
+        }
+        """
+        self.setStyleSheet(style)
 
     def init_tabs(self):
         # Authentication Tab
@@ -187,6 +291,11 @@ class MusicAnalyzerGUI(QWidget):
         analysis_tab.setObjectName("Analysis")
         self.tabs.addTab(analysis_tab, "Analysis")
         self.init_analysis_tab(analysis_tab)
+
+        exploration_tab = QWidget()
+        exploration_tab.setObjectName("Data Exploration")
+        self.tabs.addTab(exploration_tab, "Data Exploration")
+        self.init_exploration_tab(exploration_tab)
 
         unique_tracks_tab = QWidget()
         unique_tracks_tab.setObjectName("Unique Tracks")
@@ -211,17 +320,119 @@ class MusicAnalyzerGUI(QWidget):
 
     def init_analysis_tab(self, tab):
         layout = QVBoxLayout(tab)
+        
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search for a track or artist...")
+        self.search_bar.textChanged.connect(self.filter_tracks_table)
+        layout.addWidget(self.search_bar)
+
         self.tracks_table = QTableWidget()
         self.tracks_table.setColumnCount(2)
         self.tracks_table.setHorizontalHeaderLabels(["Track", "Artist"])
         self.tracks_table.setSelectionMode(QTableWidget.SelectionMode.MultiSelection)
         self.tracks_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.tracks_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tracks_table.setSortingEnabled(True)
+        self.tracks_table.selectionModel().selectionChanged.connect(self.update_analysis_buttons)
         layout.addWidget(self.tracks_table)
 
-        compare_button = QPushButton("Compare Selected Tracks")
-        compare_button.clicked.connect(self.open_comparison_dialog)
-        layout.addWidget(compare_button)
+        buttons_layout = QHBoxLayout()
+        self.compare_button = QPushButton("Compare Selected Tracks (Radar Chart)")
+        self.compare_button.clicked.connect(self.open_comparison_dialog)
+        buttons_layout.addWidget(self.compare_button)
+
+        self.similar_button = QPushButton("Find Similar Songs")
+        self.similar_button.clicked.connect(self.open_similar_songs_dialog)
+        buttons_layout.addWidget(self.similar_button)
+        
+        layout.addLayout(buttons_layout)
+        self.update_analysis_buttons()
+
+    def update_analysis_buttons(self):
+        selected_rows = len(self.tracks_table.selectionModel().selectedRows())
+        self.compare_button.setEnabled(1 <= selected_rows <= 3)
+        self.similar_button.setEnabled(selected_rows == 1)
+
+    def filter_tracks_table(self, text):
+        for i in range(self.tracks_table.rowCount()):
+            track_item = self.tracks_table.item(i, 0)
+            artist_item = self.tracks_table.item(i, 1)
+            track_match = text.lower() in track_item.text().lower()
+            artist_match = text.lower() in artist_item.text().lower()
+            self.tracks_table.setRowHidden(i, not (track_match or artist_match))
+
+    def init_exploration_tab(self, tab):
+        layout = QVBoxLayout(tab)
+        self.plot_canvas = FigureCanvas(plt.Figure())
+        layout.addWidget(self.plot_canvas)
+
+        self.plot_explanation_label = QLabel("")
+        self.plot_explanation_label.setWordWrap(True)
+        self.plot_explanation_label.setStyleSheet("font-style: italic; color: grey;")
+        layout.addWidget(self.plot_explanation_label)
+
+        controls_layout = QGridLayout()
+        self.plot_type_combo = QComboBox()
+        self.plot_type_combo.addItems(["Distribution", "Correlation Heatmap", "Scatter Plot"])
+        self.plot_type_combo.currentTextChanged.connect(self.update_plot_controls)
+        controls_layout.addWidget(QLabel("Plot Type:"), 0, 0)
+        controls_layout.addWidget(self.plot_type_combo, 0, 1)
+
+        self.feature1_combo = QComboBox()
+        self.feature2_combo = QComboBox()
+        self.update_feature_combos()
+
+        self.feature1_label = QLabel("Feature:")
+        self.feature2_label = QLabel("Feature 2:")
+
+        controls_layout.addWidget(self.feature1_label, 1, 0)
+        controls_layout.addWidget(self.feature1_combo, 1, 1)
+        controls_layout.addWidget(self.feature2_label, 2, 0)
+        controls_layout.addWidget(self.feature2_combo, 2, 1)
+
+        plot_button = QPushButton("Generate Plot")
+        plot_button.clicked.connect(self.generate_exploration_plot)
+        controls_layout.addWidget(plot_button, 3, 0, 1, 2)
+
+        layout.addLayout(controls_layout)
+        self.update_plot_controls("Distribution")
+
+    def update_plot_controls(self, plot_type):
+        self.feature1_label.setVisible(True)
+        self.feature1_combo.setVisible(True)
+        self.feature2_label.setVisible(plot_type == "Scatter Plot")
+        self.feature2_combo.setVisible(plot_type == "Scatter Plot")
+
+        if plot_type == "Distribution":
+            self.plot_explanation_label.setText("Shows how a single audio feature is distributed across all tracks. The red dashed line indicates the average value.")
+        elif plot_type == "Correlation Heatmap":
+            self.plot_explanation_label.setText("A matrix showing the correlation between different audio features. A value close to 1 (red) means a strong positive correlation, while a value close to -1 (blue) means a strong negative correlation.")
+        elif plot_type == "Scatter Plot":
+            self.plot_explanation_label.setText("A plot to visualize the relationship between two selected audio features. Each point represents a track.")
+
+    def update_feature_combos(self):
+        features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
+        self.feature1_combo.addItems(features)
+        self.feature2_combo.addItems(features)
+
+    def generate_exploration_plot(self):
+        plot_type = self.plot_type_combo.currentText()
+        
+        fig = None
+        if plot_type == "Distribution":
+            feature = self.feature1_combo.currentText()
+            fig = plot_feature_distribution(self.data_df, feature)
+        elif plot_type == "Correlation Heatmap":
+            features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
+            fig = plot_correlation_heatmap(self.data_df, features)
+        elif plot_type == "Scatter Plot":
+            feature1 = self.feature1_combo.currentText()
+            feature2 = self.feature2_combo.currentText()
+            fig = plot_scatter(self.data_df, feature1, feature2)
+
+        if fig:
+            self.plot_canvas.figure = fig
+            self.plot_canvas.draw()
 
     def init_unique_tracks_tab(self, tab):
         layout = QVBoxLayout(tab)
@@ -400,12 +611,18 @@ class MusicAnalyzerGUI(QWidget):
 
     def open_comparison_dialog(self):
         selected_rows = self.tracks_table.selectionModel().selectedRows()
-        if len(selected_rows) != 2:
-            QMessageBox.warning(self, "Selection Error", "Please select exactly two tracks to compare.")
-            return
-
         track_ids = [self.tracks_table.item(row.row(), 0).data(Qt.ItemDataRole.UserRole) for row in selected_rows]
         dialog = ComparisonDialog(self.data_df, track_ids, self)
+        dialog.exec()
+
+    def open_similar_songs_dialog(self):
+        selected_rows = self.tracks_table.selectionModel().selectedRows()
+        seed_track_id = self.tracks_table.item(selected_rows[0].row(), 0).data(Qt.ItemDataRole.UserRole)
+        
+        features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
+        similar_songs_df = find_similar_songs(self.data_df, seed_track_id, features)
+        
+        dialog = SimilarSongsDialog(similar_songs_df, self)
         dialog.exec()
 
     def find_unique_tracks(self):
@@ -585,6 +802,7 @@ class MusicAnalyzerGUI(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     gui = MusicAnalyzerGUI()
     gui.show()
     sys.exit(app.exec())
