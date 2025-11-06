@@ -49,14 +49,65 @@ The application features two primary machine learning models that operate on the
     1.  **Client Credentials Flow:** Used for public, non-user-specific data. This is handled by the `authenticate` method in `spotifyClient.py`.
     2.  **Authorization Code Flow:** A more complex, user-interactive flow that allows the application to access a user's personal data after they grant permission. This is handled by the `get_auth_url` and `fetch_token_from_url` methods and requires a `redirect_uri` to be configured in your Spotify Developer dashboard.
 
-### 2.2. Data Visualization
+---
 
-The application provides a rich suite of data visualization tools to explore the music dataset, all powered by `matplotlib` and `seaborn`.
+## 3. Data Visualization & Analysis
 
--   **Radar Chart:** Found in the "Analysis" tab, this chart is used to compare the audio feature "fingerprints" of 1-3 selected songs. It's an excellent tool for seeing the relative strengths of different features in a song at a glance.
+The application provides a rich suite of data visualization tools to explore the music dataset. These are found in the "Analysis" and "Data Exploration" tabs.
 
--   **Distribution Plot (Histogram/Density):** Found in the "Data Exploration" tab, this plot shows the frequency distribution of a single selected audio feature across the entire dataset. It helps to understand the overall character of the music library (e.g., "Is most of the music high-energy?").
+### 3.1. Radar Chart (Track Comparison)
 
--   **Correlation Heatmap:** This plot shows the correlation matrix of all audio features. It's a powerful tool for discovering relationships *between* features. For example, the strong positive correlation between `energy` and `loudness` is immediately visible.
+-   **What It Is:** The radar chart, found in the **Analysis** tab, is the primary tool for comparing the audio feature "fingerprints" of 1 to 3 songs. Each selected song is represented by a colored shape, and each corner of the chart represents a different audio feature. The further a point is from the center, the higher its value for that feature.
 
--   **Scatter Plot:** This allows for a deep dive into the relationship between any two selected audio features. Each point on the plot is a song, making it easy to spot trends and clusters.
+-   **How to Use It:** Select one, two, or three songs from the main tracklist in the "Analysis" tab and click the "Compare Selected Tracks" button.
+
+-   **What It Tells You:** This chart is excellent for seeing the relative balance of features in a song. For example:
+    -   A song with points skewed towards `danceability`, `energy`, and `valence` will likely be an upbeat, happy dance track.
+    -   A song with a high value for `acousticness` and low values for `energy` and `loudness` is likely a mellow, acoustic piece.
+    -   Comparing two songs might reveal that while they have similar energy levels, one is much more instrumental than the other.
+
+### 3.2. Distribution Plot (Histogram)
+
+-   **What It Is:** This plot, found in the **Data Exploration** tab, shows the frequency distribution of a single selected audio feature across the entire 130,000+ song dataset. The x-axis represents the value of the feature, and the y-axis shows how many songs have that value.
+
+-   **How to Use It:** Select "Distribution" from the plot type dropdown, choose a feature, and click "Generate Plot."
+
+-   **What It Tells You:** This plot is key to understanding the overall character of the music library. For instance:
+    -   A distribution plot for `energy` might show a bi-modal distribution, indicating a large number of both low-energy and high-energy songs, but fewer in the middle.
+    -   A plot for `instrumentalness` will likely be heavily skewed towards zero, as most songs contain vocals. The long tail of the distribution represents the purely instrumental tracks.
+    -   The red dashed line indicates the *average* value for that feature across the whole dataset, giving you a quick reference point.
+
+### 3.3. Correlation Heatmap
+
+-   **What It Is:** This plot, also in the **Data Exploration** tab, is a powerful tool for discovering the relationships *between* different audio features. It is a grid where each cell shows the correlation coefficient between two features.
+
+-   **How to Use It:** Select "Correlation Heatmap" from the plot type dropdown and click "Generate Plot."
+
+-   **What It Tells You:** The heatmap reveals which features tend to move together:
+    -   **Strong Positive Correlation (Bright Red):** A value close to +1.0 means that as one feature increases, the other tends to increase as well. For example, you will see a strong positive correlation between `energy` and `loudness`—energetic songs are almost always loud.
+    -   **Strong Negative Correlation (Bright Blue):** A value close to -1.0 means that as one feature increases, the other tends to *decrease*. A classic example is the negative correlation between `acousticness` and `energy`.
+    -   **No Correlation (Near Zero/White):** A value near 0 means the two features have little to no linear relationship (e.g., `danceability` and `key`).
+
+### 3.4. Scatter Plot
+
+-   **What It Is:** The scatter plot provides a more granular view of the relationship between any two specific audio features. Each dot on the plot represents a single song from the dataset.
+
+-   **How to Use It:** Select "Scatter Plot" from the dropdown, choose two features you want to compare, and click "Generate Plot."
+
+-   **Interpreting the Plots: Key Combinations**
+    -   **`valence` vs. `energy` (The Mood Map):** This is the most famous combination. It maps songs to a four-quadrant emotional space:
+        -   *Top-Right (High Valence, High Energy):* Happy, exciting, and energetic music. Think party anthems or upbeat pop.
+        -   *Top-Left (High Valence, Low Energy):* Calm, positive, and peaceful music. Think of a lazy Sunday morning or a chill coffee shop.
+        -   *Bottom-Left (Low Valence, Low Energy):* Sad, introspective, and melancholic music. This is the quadrant for ballads and ambient soundscapes.
+        -   *Bottom-Right (Low Valence, High Energy):* Angry, intense, and chaotic music. Heavy metal and aggressive electronic music live here.
+
+    -   **`acousticness` vs. `energy`:** This plot is excellent for separating produced, electronic music from live, acoustic performances.
+        -   You will typically see a strong negative correlation, forming a diagonal line. Songs in the *top-left* (high acousticness, low energy) are likely solo piano or guitar tracks. Songs in the *bottom-right* (low acousticness, high energy) are likely electronic dance music or heavily produced pop.
+
+    -   **`danceability` vs. `energy`:** This helps distinguish between different kinds of high-energy music.
+        -   While often positively correlated, there are interesting exceptions. A track in the *top-right* (high danceability, high energy) is a classic club banger. However, a track in the *bottom-right* (low danceability, high energy) might be a fast-paced rock or metal song that is intense but not necessarily easy to dance to.
+
+    -   **`speechiness` vs. `instrumentalness`:** This plot is ideal for identifying vocal-centric vs. instrumental-centric tracks.
+        -   You should see two distinct clusters. A cluster in the *top-left* (high speechiness, low instrumentalness) will contain rap, podcasts, and spoken-word tracks. A cluster in the *bottom-right* (low speechiness, high instrumentalness) will contain classical music, ambient, and other instrumental genres. Most other pop/rock songs will be clustered near the bottom-left.
+
+    -   **`loudness` vs. `energy`:** This plot demonstrates one of the strongest linear relationships in audio features. You will see a tight, diagonal line of points, confirming that as songs get more energetic, they almost always get louder. Outliers in this plot could be interesting anomalies.
