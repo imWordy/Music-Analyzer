@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QTableWidget, QTableWidgetItem, QHeaderView, QSplitter, QDialog, 
                              QFrame, QListWidget, QListWidgetItem, QMessageBox, QGridLayout, 
                              QRadioButton, QButtonGroup, QComboBox)
-from PySide6.QtCore import QThread, Signal, Qt, QUrl
+from PySide6.QtCore import QThread, Signal, Qt, QUrl, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -133,7 +133,7 @@ class ComparisonDialog(QDialog):
         self.df = df
         self.track_ids = track_ids
         self.setWindowTitle("Compare Audio Features")
-        self.setGeometry(200, 200, 800, 800)
+        self.setGeometry(200, 200, 1600, 800)
 
         main_layout = QVBoxLayout(self)
         self.plot_widget = QWidget()
@@ -179,6 +179,10 @@ class MusicAnalyzerGUI(QWidget):
         self.layout = QVBoxLayout(self)
         self.tabs = QTabWidget()
         self.layout.addWidget(self.tabs)
+        
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.timeout.connect(self.perform_filter)
 
         self.init_tabs()
 
@@ -323,7 +327,7 @@ class MusicAnalyzerGUI(QWidget):
         
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search for a track or artist...")
-        self.search_bar.textChanged.connect(self.filter_tracks_table)
+        self.search_bar.textChanged.connect(self.on_search_text_changed)
         layout.addWidget(self.search_bar)
 
         self.tracks_table = QTableWidget()
@@ -353,13 +357,18 @@ class MusicAnalyzerGUI(QWidget):
         self.compare_button.setEnabled(1 <= selected_rows <= 3)
         self.similar_button.setEnabled(selected_rows == 1)
 
-    def filter_tracks_table(self, text):
+    def on_search_text_changed(self):
+        self.search_timer.start(300)
+
+    def perform_filter(self):
+        text = self.search_bar.text().lower()
         for i in range(self.tracks_table.rowCount()):
             track_item = self.tracks_table.item(i, 0)
             artist_item = self.tracks_table.item(i, 1)
-            track_match = text.lower() in track_item.text().lower()
-            artist_match = text.lower() in artist_item.text().lower()
-            self.tracks_table.setRowHidden(i, not (track_match or artist_match))
+            if track_item and artist_item:
+                track_match = text in track_item.text().lower()
+                artist_match = text in artist_item.text().lower()
+                self.tracks_table.setRowHidden(i, not (track_match or artist_match))
 
     def init_exploration_tab(self, tab):
         layout = QVBoxLayout(tab)

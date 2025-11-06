@@ -8,7 +8,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from typing import List, Dict
 
 projectRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-envPath = os.path.join(projectRoot, "config", ".env")
+envPath = os.path.join(projectRoot, "config", ".env.example")
 
 class SpotifyClient:
     def __init__(self):
