@@ -1,71 +1,103 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_similarity
 
-def plot_single_feature(df, track_ids, feature):
+def find_similar_songs(df, seed_track_id, features, n=10):
     """
-    Generates a simple bar chart comparing a single audio feature between two tracks.
-
-    Args:
-        df (pd.DataFrame): The main DataFrame containing all track data.
-        track_ids (list): A list containing the two track_ids to compare.
-        feature (str): The single audio feature name (column) to plot.
-
-    Returns:
-        matplotlib.figure.Figure: The generated plot figure.
+    Finds the most similar songs to a seed song based on audio features.
     """
-    fig, ax = plt.subplots(figsize=(6, 4))
+    # Scale the features
+    scaler = StandardScaler()
+    df_scaled = scaler.fit_transform(df[features])
+    df_scaled = pd.DataFrame(df_scaled, columns=features, index=df.index)
 
-    # Filter for the two selected tracks
-    df_selected = df[df['track_id'].isin(track_ids)].set_index('track_id').loc[track_ids]
+    # Get the vector for the seed track
+    seed_vector = df_scaled.loc[df[df['track_id'] == seed_track_id].index]
 
-    if feature not in df_selected.columns:
-        ax.text(0.5, 0.5, f'Feature \'{feature}\' not found.', ha='center', va='center')
-        return fig
+    # Calculate cosine similarity
+    sim_scores = cosine_similarity(seed_vector, df_scaled)
+    sim_scores = sim_scores[0]
 
+    # Add scores to the original dataframe and sort
+    df['similarity'] = sim_scores
+    df_similar = df.sort_values(by='similarity', ascending=False)
+
+    # Exclude the seed track itself and return the top n
+    df_similar = df_similar[df_similar['track_id'] != seed_track_id]
+    return df_similar.head(n)
+
+def plot_radar_chart(df, track_ids, features):
+    """
+    Generates a radar chart to compare multiple audio features for up to 3 tracks.
+    """
+    df_selected = df[df['track_id'].isin(track_ids)]
     track_names = df_selected['track_name'].tolist()
-    feature_values = df_selected[feature].tolist()
 
-    ax.bar(track_names, feature_values, color=['skyblue', 'lightgreen'])
-    ax.set_ylabel(feature.capitalize())
-    ax.set_title(f'{feature.capitalize()} Comparison')
-    
-    # Add value labels on top of bars
-    for i, value in enumerate(feature_values):
-        ax.text(i, value, f'{value:.2f}', ha='center', va='bottom')
+    # Normalize the feature data across the entire dataset for a fair comparison
+    df_features = df[features].copy()
+    df_normalized = (df_features - df_features.min()) / (df_features.max() - df_features.min())
 
+    # Get the normalized data for the selected tracks
+    data = df_normalized.loc[df_selected.index].values
+
+    num_vars = len(features)
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+
+    for i, (row, track_name) in enumerate(zip(data, track_names)):
+        values = np.concatenate((row, row[:1]))
+        ax.plot(angles, values, label=track_name, linewidth=2)
+        ax.fill(angles, values, alpha=0.25)
+
+    ax.set_yticklabels([])
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(features, size=12)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+    ax.set_title('Song Feature Radar Comparison', size=20, y=1.1)
+
+    return fig
+
+def plot_feature_distribution(df, feature):
+    """
+    Generates a histogram and density plot for a single audio feature.
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.histplot(df[feature], kde=True, ax=ax, color='skyblue', bins=30)
+    mean_val = df[feature].mean()
+    ax.axvline(mean_val, color='r', linestyle='--', linewidth=2)
+    ax.text(mean_val * 1.1, ax.get_ylim()[1] * 0.9, f'Mean: {mean_val:.2f}', color='r')
+    ax.set_title(f'Distribution of {feature.capitalize()}', fontsize=16)
+    ax.set_xlabel(feature.capitalize(), fontsize=12)
+    ax.set_ylabel('Frequency', fontsize=12)
     fig.tight_layout()
     return fig
 
-def plot_feature_comparison(df, track_ids, features_to_compare):
+def plot_correlation_heatmap(df, features):
     """
-    (This function is no longer used by the main GUI but is kept for potential future use)
-    Generates a bar chart comparing audio features for a list of tracks.
+    Generates a heatmap of the correlation matrix for the given features.
     """
-    df_selected = df[df['track_id'].isin(track_ids)]
+    corr = df[features].corr()
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', ax=ax)
+    ax.set_title('Correlation Matrix of Audio Features', fontsize=16)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    fig.tight_layout()
+    return fig
 
-    if df_selected.empty:
-        fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, 'No data found for the selected tracks.', ha='center', va='center', transform=ax.transAxes)
-        return fig
-
-    track_names_for_plot = df_selected['track_name'].tolist()
-    n_tracks = len(df_selected)
-    n_features = len(features_to_compare)
-    fig, ax = plt.subplots(figsize=(12, 7))
-    index = np.arange(n_tracks)
-    bar_width = 0.8 / n_features
-
-    for i, feature in enumerate(features_to_compare):
-        if feature in df_selected.columns:
-            feature_values = df_selected[feature]
-            ax.bar(index + i * bar_width, feature_values, bar_width, label=feature)
-
-    ax.set_xlabel('Tracks')
-    ax.set_ylabel('Values')
-    ax.set_title('Comparison of Audio Features Across Tracks')
-    ax.set_xticks(index + bar_width * (n_features - 1) / 2)
-    ax.set_xticklabels(track_names_for_plot, rotation=45, ha="right")
-    ax.legend()
+def plot_scatter(df, feature1, feature2):
+    """
+    Generates a scatter plot to show the. relationship between two features.
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.scatterplot(data=df, x=feature1, y=feature2, alpha=0.5, ax=ax)
+    ax.set_title(f'{feature1.capitalize()} vs. {feature2.capitalize()}', fontsize=16)
+    ax.set_xlabel(feature1.capitalize(), fontsize=12)
+    ax.set_ylabel(feature2.capitalize(), fontsize=12)
     fig.tight_layout()
     return fig
